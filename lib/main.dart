@@ -4,18 +4,44 @@ void main() {
   runApp(const MyApp());
 }
 
-class GroupMember {
-  const GroupMember({required this.fullName, required this.studentId});
+// ================== BIẾN ==================
+int idUser = 1;
+String tenUser = 'Nguyen Van A';
+String role = 'Manager';
 
-  final String fullName;
-  final String studentId;
-}
+int idTask = 1;
+String tenTask = 'Thiet ke UI';
+String trangThai = 'Doing';
+String nguoiDuocGiao = 'Tran Thi B';
 
-const appTitle = 'Ứng dụng sinh tồn trong Rừng';
+// ================== COLLECTIONS ==================
+var user = {'idUser': 1, 'tenUser': 'Nguyen Van A', 'role': 'Manager'};
 
-const groupMembers = <GroupMember>[
-  GroupMember(fullName: 'Tran Thi Thu Huong', studentId: '23010344'),
-  GroupMember(fullName: 'Nguyen Thi Thuong', studentId: '23010308'),
+var listUser = [
+  {'idUser': 1, 'tenUser': 'Nguyen Van A', 'role': 'Manager'},
+  {'idUser': 2, 'tenUser': 'Tran Thi B', 'role': 'Member'},
+  {'idUser': 3, 'tenUser': 'Le Van C', 'role': 'Member'},
+];
+
+var listTask = [
+  {
+    'idTask': 1,
+    'tenTask': 'Thiet ke UI',
+    'trangThai': 'Doing',
+    'nguoiDuocGiao': 'Tran Thi B'
+  },
+  {
+    'idTask': 2,
+    'tenTask': 'Ket noi Firebase',
+    'trangThai': 'Todo',
+    'nguoiDuocGiao': 'Le Van C'
+  },
+  {
+    'idTask': 3,
+    'tenTask': 'Test app',
+    'trangThai': 'Done',
+    'nguoiDuocGiao': 'Tran Thi B'
+  }
 ];
 
 class MyApp extends StatelessWidget {
@@ -24,58 +50,59 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: appTitle,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: appTitle),
+      debugShowCheckedModeBanner: false,
+      home: const HomePage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
 
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
+        title: const Text('Quản lý công việc'),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Thành viên nhóm',
-              style: Theme.of(context).textTheme.headlineSmall,
+            const Text(
+              'Danh sách nhân sự',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: ListView.separated(
-                itemCount: groupMembers.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final member = groupMembers[index];
-                  return Card(
-                    child: ListTile(
-                      leading: CircleAvatar(child: Text('${index + 1}')),
-                      title: Text(member.fullName),
-                      subtitle: Text('MSSV: ${member.studentId}'),
-                    ),
-                  );
-                },
-              ),
+            const SizedBox(height: 8),
+            ...listUser.map((u) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('ID: ${u['idUser']}'),
+                  Text('${u['tenUser']}'),
+                  Text('${u['role']}'),
+                ],
+              );
+            }).toList(),
+            const Divider(),
+            const Text(
+              'Danh sách công việc',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 8),
+            ...listTask.map((t) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('ID: ${t['idTask']}'),
+                  Text('Tên: ${t['tenTask']}'),
+                  Text('Trạng thái: ${t['trangThai']}'),
+                  Text('Người làm: ${t['nguoiDuocGiao']}'),
+                  const Divider(),
+                ],
+              );
+            }).toList(),
           ],
         ),
       ),
