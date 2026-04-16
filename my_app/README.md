@@ -28,3 +28,23 @@
 ## Ghi chu
 - File giao dien chinh: lib/main.dart
 - README nay duoc cap nhat cho nhiem vu Buoi thuc hanh 01.
+
+# Buoi Thuc Hanh 02 - Phat trien chuc nang quan ly du an
+
+### Noi dung da thuc hien
+- Hien thi danh sach nhan su voi cac thong tin: ID, ten, vai tro
+- Hien thi danh sach cong viec voi cac thong tin: ID, ten, trang thai, nguoi duoc giao
+
+### Danh sach nhan su
+- Nguyen Van A (Manager)
+- Tran Thi B (Member)
+- Le Van C (Member)
+
+### Danh sach cong viec
+- Thiet ke UI (Trạng thái: Doing) - Người được giao: Tran Thi B
+- Ket noi Firebase (Trạng thái: Todo) - Người được giao: Le Van C
+- Test app (Trạng thái: Done) - Người được giao: Tran Thi B
+
+## Ghi chu
+- File giao dien chinh: lib/main.dart
+- README nay duoc cap nhat cho nhiem vu Buoi thuc hanh 02.
