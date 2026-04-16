@@ -15,6 +15,20 @@
 - Tran Thi Thu Huong - 23010344
 - Nguyen Thi Thuong - 23010308
 
+## Cach chay du an
+1. Cai dat Flutter SDK.
+2. Tai thu vien:
+
+	flutter pub get
+
+3. Chay ung dung:
+
+	flutter run
+
+## Ghi chu
+- File giao dien chinh: lib/main.dart
+- README nay duoc cap nhat cho nhiem vu Buoi thuc hanh 01.
+
 # Buoi Thuc Hanh 02 - Phat trien chuc nang quan ly du an
 
 ### Noi dung da thuc hien
@@ -31,16 +45,6 @@
 - Ket noi Firebase (Trạng thái: Todo) - Người được giao: Le Van C
 - Test app (Trạng thái: Done) - Người được giao: Tran Thi B
 
-## Cach chay du an
-1. Cai dat Flutter SDK.
-2. Tai thu vien:
-
-	flutter pub get
-
-3. Chay ung dung:
-
-	flutter run
-
 ## Ghi chu
 - File giao dien chinh: lib/main.dart
-- README nay duoc cap nhat cho nhiem vu Buoi thuc hanh 01.
+- README nay duoc cap nhat cho nhiem vu Buoi thuc hanh 02.
