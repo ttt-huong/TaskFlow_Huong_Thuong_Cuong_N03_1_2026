@@ -15,6 +15,22 @@
 - Tran Thi Thu Huong - 23010344
 - Nguyen Thi Thuong - 23010308
 
+## Buoi Thuc Hanh 02 - Phat trien chuc nang quan ly du an
+
+### Noi dung da thuc hien
+- Hien thi danh sach nhan su voi cac thong tin: ID, ten, vai tro
+- Hien thi danh sach cong viec voi cac thong tin: ID, ten, trang thai, nguoi duoc giao
+
+### Danh sach nhan su
+- Nguyen Van A (Manager)
+- Tran Thi B (Member)
+- Le Van C (Member)
+
+### Danh sach cong viec
+- Thiet ke UI (Trạng thái: Doing) - Người được giao: Tran Thi B
+- Ket noi Firebase (Trạng thái: Todo) - Người được giao: Le Van C
+- Test app (Trạng thái: Done) - Người được giao: Tran Thi B
+
 ## Cach chay du an
 1. Cai dat Flutter SDK.
 2. Tai thu vien:
