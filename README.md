@@ -15,7 +15,7 @@
 - Tran Thi Thu Huong - 23010344
 - Nguyen Thi Thuong - 23010308
 
-## Buoi Thuc Hanh 02 - Phat trien chuc nang quan ly du an
+# Buoi Thuc Hanh 02 - Phat trien chuc nang quan ly du an
 
 ### Noi dung da thuc hien
 - Hien thi danh sach nhan su voi cac thong tin: ID, ten, vai tro
