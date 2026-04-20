@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+# Keep generated Flutter desktop registrants stable across machines.
+linux/flutter/*.h text eol=lf
+linux/flutter/*.cc text eol=lf
+linux/flutter/*.cmake text eol=lf
+macos/Flutter/*.swift text eol=lf
+windows/flutter/*.h text eol=lf
+windows/flutter/*.cc text eol=lf
+windows/flutter/*.cmake text eol=lf
