@@ -38,12 +38,6 @@ class ProjectModel {
     }
   }
 
-  void printInfo() {
-    print('📁 Project: $name (ID: $id)');
-    print('   Mô tả: $description');
-    print('   Thành viên: ${memberIds.join(', ')}');
-  }
-
   @override
   String toString() => 'ProjectModel(id: $id, name: $name)';
 }

@@ -28,37 +28,17 @@ class ListTask {
   /// Tạo 01 bản ghi có kiểu Task và lưu giữ vào danh sách
   void create(Task task) {
     _tasks.add(task);
-    print('✔ Đã tạo task: "${task.title}" (ID: ${task.id})');
   }
 
   // ================== READ ==================
 
   /// Đọc tất cả các bản ghi có trong ListTask
-  void readAll() {
-    print('');
-    print('╔══════════════════════════════════════════╗');
-    print('║     📋 DANH SÁCH TẤT CẢ CÔNG VIỆC       ║');
-    print('╠══════════════════════════════════════════╣');
-    print('║  Tổng số task: ${_tasks.length.toString().padRight(25)}║');
-    print('╚══════════════════════════════════════════╝');
-
-    if (_tasks.isEmpty) {
-      print('  (Danh sách trống - chưa có task nào)');
-      return;
-    }
-
-    for (var task in _tasks) {
-      task.printInfo();
-    }
-    print('');
-  }
 
   /// Tìm task theo ID
   Task? findById(String id) {
     try {
       return _tasks.firstWhere((task) => task.id == id);
     } catch (e) {
-      print('⚠ Không tìm thấy task với ID: $id');
       return null;
     }
   }
@@ -95,7 +75,6 @@ class ListTask {
       task.updateStatus(status);
     }
 
-    print('✔ Đã sửa task ID: $id thành công!');
     return true;
   }
 
@@ -107,10 +86,8 @@ class ListTask {
     _tasks.removeWhere((task) => task.id == id);
 
     if (_tasks.length < lengthBefore) {
-      print('✔ Đã xóa task với ID: $id');
       return true;
     } else {
-      print('⚠ Không tìm thấy task với ID: $id để xóa!');
       return false;
     }
   }
@@ -118,20 +95,13 @@ class ListTask {
   // ================== THỐNG KÊ ==================
 
   /// Đếm số task theo trạng thái
-  Map<String, int> thongKe() {
-    int todo = _tasks.where((t) => t.status == 'todo').length;
-    int doing = _tasks.where((t) => t.status == 'doing').length;
-    int done = _tasks.where((t) => t.status == 'done').length;
-    int overdue = _tasks.where((t) => t.isOverdue()).length;
-
-    print('');
-    print('📊 THỐNG KÊ:');
-    print('   Todo  : $todo');
-    print('   Doing : $doing');
-    print('   Done  : $done');
-    print('   Quá hạn: $overdue');
-    print('   Tổng  : ${_tasks.length}');
-
-    return {'todo': todo, 'doing': doing, 'done': done, 'overdue': overdue};
+  Map<String, int> get thongKe {
+    return {
+      'todo': _tasks.where((t) => t.status == 'todo').length,
+      'doing': _tasks.where((t) => t.status == 'doing').length,
+      'done': _tasks.where((t) => t.status == 'done').length,
+      'overdue': _tasks.where((t) => t.isOverdue()).length,
+      'total': _tasks.length,
+    };
   }
 }

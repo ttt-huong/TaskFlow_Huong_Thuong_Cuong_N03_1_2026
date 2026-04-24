@@ -34,10 +34,6 @@ class UserModel {
 
   bool get isManager => role == 'manager';
 
-  void printInfo() {
-    print('👤 User: $name (ID: $id) - Role: $role - Email: $email');
-  }
-
   @override
   String toString() => 'UserModel(id: $id, name: $name, role: $role)';
 }

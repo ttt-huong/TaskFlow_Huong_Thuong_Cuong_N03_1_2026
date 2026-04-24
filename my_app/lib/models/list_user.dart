@@ -28,37 +28,17 @@ class ListUser {
   /// Tạo 01 bản ghi có kiểu UserModel và lưu giữ vào danh sách
   void create(UserModel user) {
     _users.add(user);
-    print('✔ Đã tạo user: "${user.name}" (ID: ${user.id})');
   }
 
   // ================== READ ==================
 
   /// Đọc tất cả các bản ghi có trong ListUser
-  void readAll() {
-    print('');
-    print('╔══════════════════════════════════════════╗');
-    print('║     👥 DANH SÁCH TẤT CẢ NGƯỜI DÙNG      ║');
-    print('╠══════════════════════════════════════════╣');
-    print('║  Tổng số user: ${_users.length.toString().padRight(25)}║');
-    print('╚══════════════════════════════════════════╝');
-
-    if (_users.isEmpty) {
-      print('  (Danh sách trống - chưa có user nào)');
-      return;
-    }
-
-    for (var user in _users) {
-      user.printInfo();
-    }
-    print('');
-  }
 
   /// Tìm user theo ID
   UserModel? findById(String id) {
     try {
       return _users.firstWhere((user) => user.id == id);
     } catch (e) {
-      print('⚠ Không tìm thấy user với ID: $id');
       return null;
     }
   }
@@ -84,7 +64,6 @@ class ListUser {
     if (email != null) user.email = email;
     if (role != null) user.role = role;
 
-    print('✔ Đã sửa user ID: $id thành công!');
     return true;
   }
 
@@ -96,10 +75,8 @@ class ListUser {
     _users.removeWhere((user) => user.id == id);
 
     if (_users.length < lengthBefore) {
-      print('✔ Đã xóa user với ID: $id');
       return true;
     } else {
-      print('⚠ Không tìm thấy user với ID: $id để xóa!');
       return false;
     }
   }
@@ -107,16 +84,11 @@ class ListUser {
   // ================== THỐNG KÊ ==================
 
   /// Đếm số user theo role
-  Map<String, int> thongKe() {
-    int manager = _users.where((u) => u.role == 'manager').length;
-    int member = _users.where((u) => u.role == 'member').length;
-
-    print('');
-    print('📊 THỐNG KÊ NGƯỜI DÙNG:');
-    print('   Manager : $manager');
-    print('   Member  : $member');
-    print('   Tổng    : ${_users.length}');
-
-    return {'manager': manager, 'member': member};
+  Map<String, int> get thongKe {
+    return {
+      'manager': _users.where((u) => u.role == 'manager').length,
+      'member': _users.where((u) => u.role == 'member').length,
+      'total': _users.length,
+    };
   }
 }

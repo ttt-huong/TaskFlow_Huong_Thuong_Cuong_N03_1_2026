@@ -65,13 +65,8 @@ class Task {
   /// Cập nhật trạng thái task theo luồng: todo → doing → done
   /// Không cho phép nhảy trực tiếp từ todo → done
   bool updateStatus(String newStatus) {
-    if (status == 'todo' && newStatus == 'done') {
-      print('⚠ Không thể chuyển trực tiếp từ "todo" sang "done"!');
-      print('  Phải chuyển qua "doing" trước.');
-      return false;
-    }
+    if (status == 'todo' && newStatus == 'done') return false;
     status = newStatus;
-    print('✔ Cập nhật trạng thái task "$title" → $status');
     return true;
   }
 
@@ -86,19 +81,6 @@ class Task {
   }
 
   /// In ra thông tin chi tiết của task
-  void printInfo() {
-    print('────────────────────────────────');
-    print('📋 Task: $title');
-    print('   ID          : $id');
-    print('   Project ID  : $projectId');
-    print('   Assigned To : $assignedTo');
-    print('   Status      : $status');
-    print('   Deadline    : $deadline');
-    if (isOverdue()) {
-      print('   ⚠ CẢNH BÁO  : Task đã QUÁ HẠN!');
-    }
-    print('────────────────────────────────');
-  }
 
   /// Override toString để hiển thị nhanh
   @override

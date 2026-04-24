@@ -28,37 +28,17 @@ class ListProject {
   /// Tạo 01 bản ghi có kiểu ProjectModel và lưu giữ vào danh sách
   void create(ProjectModel project) {
     _projects.add(project);
-    print('✔ Đã tạo project: "${project.name}" (ID: ${project.id})');
   }
 
   // ================== READ ==================
 
   /// Đọc tất cả các bản ghi có trong ListProject
-  void readAll() {
-    print('');
-    print('╔══════════════════════════════════════════╗');
-    print('║     📁 DANH SÁCH TẤT CẢ DỰ ÁN           ║');
-    print('╠══════════════════════════════════════════╣');
-    print('║  Tổng số project: ${_projects.length.toString().padRight(22)}║');
-    print('╚══════════════════════════════════════════╝');
-
-    if (_projects.isEmpty) {
-      print('  (Danh sách trống - chưa có project nào)');
-      return;
-    }
-
-    for (var project in _projects) {
-      project.printInfo();
-    }
-    print('');
-  }
 
   /// Tìm project theo ID
   ProjectModel? findById(String id) {
     try {
       return _projects.firstWhere((project) => project.id == id);
     } catch (e) {
-      print('⚠ Không tìm thấy project với ID: $id');
       return null;
     }
   }
@@ -84,7 +64,6 @@ class ListProject {
     if (description != null) project.description = description;
     if (memberIds != null) project.memberIds = memberIds;
 
-    print('✔ Đã sửa project ID: $id thành công!');
     return true;
   }
 
@@ -96,10 +75,8 @@ class ListProject {
     _projects.removeWhere((project) => project.id == id);
 
     if (_projects.length < lengthBefore) {
-      print('✔ Đã xóa project với ID: $id');
       return true;
     } else {
-      print('⚠ Không tìm thấy project với ID: $id để xóa!');
       return false;
     }
   }
@@ -107,16 +84,11 @@ class ListProject {
   // ================== THỐNG KÊ ==================
 
   /// Thống kê số project và tổng thành viên
-  Map<String, int> thongKe() {
+  Map<String, int> get thongKe {
     int totalMembers = 0;
     for (var project in _projects) {
       totalMembers += project.memberIds.length;
     }
-
-    print('');
-    print('📊 THỐNG KÊ DỰ ÁN:');
-    print('   Số project       : ${_projects.length}');
-    print('   Tổng thành viên  : $totalMembers');
 
     return {'projects': _projects.length, 'totalMembers': totalMembers};
   }
