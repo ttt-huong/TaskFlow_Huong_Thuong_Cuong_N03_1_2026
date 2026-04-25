@@ -2,7 +2,7 @@
 // Câu 2: Generics Class (Tổng quát hóa) – In ra dữ liệu đầu vào
 // ============================================================
 
-/// DataPrinter<T> là một Generics Class cho phép nhận bất kỳ
+/// `DataPrinter<T>` là một Generics Class cho phép nhận bất kỳ
 /// kiểu dữ liệu nào (int, String, double, Object...) và in ra
 /// thông tin chi tiết của dữ liệu đó.
 class DataPrinter<T> {
@@ -31,7 +31,7 @@ class DataPrinter<T> {
   }
 }
 
-/// DataListPrinter<T> – Generics Class cho danh sách
+/// `DataListPrinter<T>` – Generics Class cho danh sách
 /// Cho phép in ra danh sách bất kỳ kiểu dữ liệu nào.
 class DataListPrinter<T> {
   List<T> dataList;

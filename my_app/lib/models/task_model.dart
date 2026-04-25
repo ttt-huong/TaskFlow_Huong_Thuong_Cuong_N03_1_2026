@@ -14,6 +14,9 @@ class Task {
   /// Tên công việc
   String title;
 
+  /// Mô tả chi tiết công việc
+  String description;
+
   /// ID dự án chứa task này
   String projectId;
 
@@ -23,14 +26,15 @@ class Task {
   /// Trạng thái: todo / doing / done
   String status;
 
-  /// Hạn hoàn thành (YYYY-MM-DD)
-  String deadline;
+  /// Hạn hoàn thành (dùng DateTime thay vì String để tránh parse lặp)
+  DateTime deadline;
 
   // ================== CONSTRUCTOR ==================
 
   Task({
     required this.id,
     required this.title,
+    this.description = '',
     required this.projectId,
     required this.assignedTo,
     required this.status,
@@ -44,10 +48,11 @@ class Task {
     return Task(
       id: id,
       title: data['title'] ?? '',
+      description: data['description'] ?? '',
       projectId: data['projectId'] ?? '',
       assignedTo: data['assignedTo'] ?? '',
       status: data['status'] ?? 'todo',
-      deadline: data['deadline'] ?? '',
+      deadline: DateTime.tryParse(data['deadline'] ?? '') ?? DateTime.now(),
     );
   }
 
@@ -55,37 +60,45 @@ class Task {
   Map<String, dynamic> toMap() {
     return {
       'title': title,
+      'description': description,
       'projectId': projectId,
       'assignedTo': assignedTo,
       'status': status,
-      'deadline': deadline,
+      'deadline': deadline.toIso8601String(),
     };
   }
 
   /// Cập nhật trạng thái task theo luồng: todo → doing → done
-  /// Không cho phép nhảy trực tiếp từ todo → done
+  /// Chỉ cho phép chuyển trạng thái hợp lệ theo đúng thứ tự
+  /// Không cho phép: todo→done, done→doing, done→todo, doing→todo
   bool updateStatus(String newStatus) {
-    if (status == 'todo' && newStatus == 'done') return false;
+    const validTransitions = {
+      'todo': ['doing'],
+      'doing': ['done'],
+      'done': <String>[], // Không cho rollback
+    };
+
+    final allowed = validTransitions[status] ?? [];
+    if (!allowed.contains(newStatus)) return false;
+
     status = newStatus;
     return true;
   }
 
-  /// Kiểm tra task có quá hạn không
+  /// Kiểm tra task có quá hạn không (không cần try/catch vì deadline đã là DateTime)
   bool isOverdue() {
-    try {
-      DateTime deadlineDate = DateTime.parse(deadline);
-      return status != 'done' && DateTime.now().isAfter(deadlineDate);
-    } catch (e) {
-      return false;
-    }
+    return status != 'done' && DateTime.now().isAfter(deadline);
   }
 
-  /// In ra thông tin chi tiết của task
+  /// Định dạng deadline hiển thị: YYYY-MM-DD
+  String get deadlineFormatted {
+    return '${deadline.year}-${deadline.month.toString().padLeft(2, '0')}-${deadline.day.toString().padLeft(2, '0')}';
+  }
 
   /// Override toString để hiển thị nhanh
   @override
   String toString() {
     return 'Task(id: $id, title: $title, status: $status, '
-        'assignedTo: $assignedTo, deadline: $deadline)';
+        'assignedTo: $assignedTo, deadline: $deadlineFormatted)';
   }
 }

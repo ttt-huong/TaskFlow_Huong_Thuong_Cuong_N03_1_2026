@@ -2,7 +2,7 @@
 // Câu 3: ListTask – Danh sách công việc với CRUD
 // ============================================================
 
-import 'task_model.dart';
+import '../models/task_model.dart';
 
 /// ListTask chứa danh sách các Task và cung cấp các thao tác CRUD:
 /// - Create: Tạo mới 1 task
@@ -13,7 +13,7 @@ class ListTask {
   // ================== BIẾN ==================
 
   /// Danh sách các Task
-  List<Task> _tasks = [];
+  final List<Task> _tasks = [];
 
   // ================== GETTER ==================
 
@@ -26,8 +26,15 @@ class ListTask {
   // ================== CREATE ==================
 
   /// Tạo 01 bản ghi có kiểu Task và lưu giữ vào danh sách
-  void create(Task task) {
+  /// Trả về false nếu ID đã tồn tại hoặc dữ liệu không hợp lệ
+  bool create(Task task) {
+    // Validation đầu vào
+    if (task.id.isEmpty) return false;
+    if (task.title.isEmpty) return false;
+    if (task.assignedTo.isEmpty) return false;
+    if (_tasks.any((t) => t.id == task.id)) return false;
     _tasks.add(task);
+    return true;
   }
 
   // ================== READ ==================
@@ -49,16 +56,16 @@ class ListTask {
   /// Trả về true nếu sửa thành công, false nếu không tìm thấy
   bool edit(String id, {
     String? title,
+    String? description,
     String? projectId,
     String? assignedTo,
     String? status,
-    String? deadline,
+    DateTime? deadline,
   }) {
     // Tìm vị trí task cần sửa
     int index = _tasks.indexWhere((task) => task.id == id);
 
     if (index == -1) {
-      print('⚠ Không tìm thấy task với ID: $id để sửa!');
       return false;
     }
 
@@ -66,6 +73,7 @@ class ListTask {
     Task task = _tasks[index];
 
     if (title != null) task.title = title;
+    if (description != null) task.description = description;
     if (projectId != null) task.projectId = projectId;
     if (assignedTo != null) task.assignedTo = assignedTo;
     if (deadline != null) task.deadline = deadline;
@@ -90,6 +98,15 @@ class ListTask {
     } else {
       return false;
     }
+  }
+
+  // ================== ORPHAN TASKS ==================
+
+  /// Xóa tất cả task thuộc một project (xử lý orphan khi xóa project)
+  int deleteTasksByProject(String projectId) {
+    int lengthBefore = _tasks.length;
+    _tasks.removeWhere((task) => task.projectId == projectId);
+    return lengthBefore - _tasks.length;
   }
 
   // ================== THỐNG KÊ ==================

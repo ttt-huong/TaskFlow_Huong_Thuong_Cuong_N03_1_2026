@@ -2,7 +2,7 @@
 // ListUser – Danh sách người dùng với CRUD
 // ============================================================
 
-import 'user_model.dart';
+import '../models/user_model.dart';
 
 /// ListUser chứa danh sách các UserModel và cung cấp các thao tác CRUD:
 /// - Create: Tạo mới 1 user
@@ -13,7 +13,7 @@ class ListUser {
   // ================== BIẾN ==================
 
   /// Danh sách các UserModel
-  List<UserModel> _users = [];
+  final List<UserModel> _users = [];
 
   // ================== GETTER ==================
 
@@ -26,8 +26,14 @@ class ListUser {
   // ================== CREATE ==================
 
   /// Tạo 01 bản ghi có kiểu UserModel và lưu giữ vào danh sách
-  void create(UserModel user) {
+  /// Trả về false nếu ID đã tồn tại hoặc dữ liệu không hợp lệ
+  bool create(UserModel user) {
+    if (user.id.isEmpty) return false;
+    if (user.name.isEmpty) return false;
+    if (user.email.isEmpty) return false;
+    if (_users.any((u) => u.id == user.id)) return false;
     _users.add(user);
+    return true;
   }
 
   // ================== READ ==================
@@ -54,7 +60,6 @@ class ListUser {
     int index = _users.indexWhere((user) => user.id == id);
 
     if (index == -1) {
-      print('⚠ Không tìm thấy user với ID: $id để sửa!');
       return false;
     }
 

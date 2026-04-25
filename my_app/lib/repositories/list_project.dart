@@ -2,7 +2,7 @@
 // ListProject – Danh sách dự án với CRUD
 // ============================================================
 
-import 'project_model.dart';
+import '../models/project_model.dart';
 
 /// ListProject chứa danh sách các ProjectModel và cung cấp các thao tác CRUD:
 /// - Create: Tạo mới 1 project
@@ -13,7 +13,7 @@ class ListProject {
   // ================== BIẾN ==================
 
   /// Danh sách các ProjectModel
-  List<ProjectModel> _projects = [];
+  final List<ProjectModel> _projects = [];
 
   // ================== GETTER ==================
 
@@ -26,8 +26,13 @@ class ListProject {
   // ================== CREATE ==================
 
   /// Tạo 01 bản ghi có kiểu ProjectModel và lưu giữ vào danh sách
-  void create(ProjectModel project) {
+  /// Trả về false nếu ID đã tồn tại hoặc dữ liệu không hợp lệ
+  bool create(ProjectModel project) {
+    if (project.id.isEmpty) return false;
+    if (project.name.isEmpty) return false;
+    if (_projects.any((p) => p.id == project.id)) return false;
     _projects.add(project);
+    return true;
   }
 
   // ================== READ ==================
@@ -54,7 +59,6 @@ class ListProject {
     int index = _projects.indexWhere((project) => project.id == id);
 
     if (index == -1) {
-      print('⚠ Không tìm thấy project với ID: $id để sửa!');
       return false;
     }
 
