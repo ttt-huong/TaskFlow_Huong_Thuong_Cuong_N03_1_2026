@@ -6,12 +6,14 @@ class UserModel {
   String id;
   String name;
   String email;
+  String password;
   String role; // 'manager' hoặc 'member'
 
   UserModel({
     required this.id,
     required this.name,
     required this.email,
+    required this.password,
     required this.role,
   });
 
@@ -20,6 +22,7 @@ class UserModel {
       id: id,
       name: data['name'] ?? '',
       email: data['email'] ?? '',
+      password: data['password'] ?? '123456', // Default cho dữ liệu cũ
       role: data['role'] ?? 'member',
     );
   }
@@ -28,6 +31,7 @@ class UserModel {
     return {
       'name': name,
       'email': email,
+      'password': password,
       'role': role,
     };
   }

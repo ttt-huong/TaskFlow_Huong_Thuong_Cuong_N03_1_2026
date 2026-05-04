@@ -68,14 +68,14 @@ class Task {
     };
   }
 
-  /// Cập nhật trạng thái task theo luồng: todo → doing → done
+  /// Cập nhật trạng thái task theo luồng: todo → doing → reviewing → done
   /// Chỉ cho phép chuyển trạng thái hợp lệ theo đúng thứ tự
-  /// Không cho phép: todo→done, done→doing, done→todo, doing→todo
   bool updateStatus(String newStatus) {
     const validTransitions = {
       'todo': ['doing'],
-      'doing': ['done'],
-      'done': <String>[], // Không cho rollback
+      'doing': ['reviewing'],
+      'reviewing': ['done', 'doing'], // Duyệt xong hoặc yêu cầu sửa lại
+      'done': <String>[], 
     };
 
     final allowed = validTransitions[status] ?? [];
