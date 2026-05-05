@@ -1,23 +1,8 @@
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
+import 'app.dart';
 
 void main() {
+  // 6. main.dart (STRICT) - Chỉ khởi động app
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'TaskFlow',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF2196F3),
-        useMaterial3: true,
-      ),
-      home: const HomePage(),
-    );
-  }
 }
