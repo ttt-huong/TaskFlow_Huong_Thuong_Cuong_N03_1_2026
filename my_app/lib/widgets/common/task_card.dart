@@ -1,25 +1,25 @@
 import 'package:flutter/material.dart';
-import '../models/task_model.dart';
+import '../../models/task_model.dart';
+import '../../core/app_colors.dart';
 
 /// Widget TaskCard – hiển thị thông tin 1 task dạng card
-/// Tái sử dụng được ở nhiều màn hình (TaskScreen, MyTaskScreen, HomePage)
 class TaskCard extends StatelessWidget {
   final Task task;
   final VoidCallback? onTap;
 
   const TaskCard({super.key, required this.task, this.onTap});
 
-  // Màu theo trạng thái (khớp tài liệu: todo=#E74C3C, doing=#F39C12, done=#27AE60)
+  // Màu theo trạng thái (Sử dụng AppColors tập trung)
   static Color statusColor(String status) {
     switch (status) {
       case 'todo':
-        return const Color(0xFFE74C3C);
+        return AppColors.todo;
       case 'doing':
-        return const Color(0xFFF39C12);
+        return AppColors.doing;
       case 'done':
-        return const Color(0xFF27AE60);
+        return AppColors.done;
       default:
-        return Colors.grey;
+        return AppColors.grey;
     }
   }
 
@@ -48,7 +48,7 @@ class TaskCard extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: isOverdue
-            ? const BorderSide(color: Colors.red, width: 2)
+            ? const BorderSide(color: AppColors.error, width: 2)
             : BorderSide.none,
       ),
       child: ListTile(
@@ -66,7 +66,7 @@ class TaskCard extends StatelessWidget {
               const Text(
                 '⚠ QUÁ HẠN!',
                 style: TextStyle(
-                    color: Colors.red, fontWeight: FontWeight.bold),
+                    color: AppColors.error, fontWeight: FontWeight.bold),
               ),
           ],
         ),
@@ -74,7 +74,7 @@ class TaskCard extends StatelessWidget {
           label: Text(
             task.status.toUpperCase(),
             style: const TextStyle(
-                color: Colors.white,
+                color: AppColors.white,
                 fontSize: 12,
                 fontWeight: FontWeight.bold),
           ),
