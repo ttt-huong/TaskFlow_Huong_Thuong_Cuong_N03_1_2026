@@ -2,18 +2,19 @@
 // ListProject – Danh sách dự án với CRUD
 // ============================================================
 
-import '../models/project_model.dart';
+import '../../models/project_model.dart';
+import '../../core/seed_data.dart';
 
-/// ListProject chứa danh sách các ProjectModel và cung cấp các thao tác CRUD:
-/// - Create: Tạo mới 1 project
-/// - Read  : Đọc tất cả các project
-/// - Update: Sửa 1 project theo id
-/// - Delete: Xóa 1 project theo id
 class ListProject {
+  // ================== SINGLETON ==================
+  static final ListProject _instance = ListProject._internal();
+  factory ListProject() => _instance;
+  ListProject._internal();
+
   // ================== BIẾN ==================
 
   /// Danh sách các ProjectModel
-  final List<ProjectModel> _projects = [];
+  final List<ProjectModel> _projects = List.from(SeedData.initialProjects);
 
   // ================== GETTER ==================
 
@@ -51,7 +52,8 @@ class ListProject {
   // ================== UPDATE (EDIT) ==================
 
   /// Sửa 01 bản ghi có kiểu ProjectModel, có id cụ thể và lưu giữ vào ListProject
-  bool edit(String id, {
+  bool edit(
+    String id, {
     String? name,
     String? description,
     List<String>? memberIds,

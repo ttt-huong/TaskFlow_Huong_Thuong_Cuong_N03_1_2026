@@ -2,18 +2,19 @@
 // Câu 3: ListTask – Danh sách công việc với CRUD
 // ============================================================
 
-import '../models/task_model.dart';
+import '../../models/task_model.dart';
+import '../../core/seed_data.dart';
 
-/// ListTask chứa danh sách các Task và cung cấp các thao tác CRUD:
-/// - Create: Tạo mới 1 task
-/// - Read  : Đọc tất cả các task
-/// - Update: Sửa 1 task theo id
-/// - Delete: (mở rộng) Xóa 1 task theo id
 class ListTask {
+  // ================== SINGLETON ==================
+  static final ListTask _instance = ListTask._internal();
+  factory ListTask() => _instance;
+  ListTask._internal();
+
   // ================== BIẾN ==================
 
   /// Danh sách các Task
-  final List<Task> _tasks = [];
+  final List<Task> _tasks = List.from(SeedData.initialTasks);
 
   // ================== GETTER ==================
 
@@ -54,7 +55,8 @@ class ListTask {
 
   /// Sửa 01 bản ghi có kiểu Task, có id cụ thể và lưu giữ vào ListTask
   /// Trả về true nếu sửa thành công, false nếu không tìm thấy
-  bool edit(String id, {
+  bool edit(
+    String id, {
     String? title,
     String? description,
     String? projectId,

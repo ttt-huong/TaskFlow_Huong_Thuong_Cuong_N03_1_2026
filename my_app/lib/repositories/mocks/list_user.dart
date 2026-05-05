@@ -2,18 +2,19 @@
 // ListUser – Danh sách người dùng với CRUD
 // ============================================================
 
-import '../models/user_model.dart';
+import '../../models/user_model.dart';
+import '../../core/seed_data.dart';
 
-/// ListUser chứa danh sách các UserModel và cung cấp các thao tác CRUD:
-/// - Create: Tạo mới 1 user
-/// - Read  : Đọc tất cả các user
-/// - Update: Sửa 1 user theo id
-/// - Delete: Xóa 1 user theo id
 class ListUser {
+  // ================== SINGLETON ==================
+  static final ListUser _instance = ListUser._internal();
+  factory ListUser() => _instance;
+  ListUser._internal();
+
   // ================== BIẾN ==================
 
   /// Danh sách các UserModel
-  final List<UserModel> _users = [];
+  final List<UserModel> _users = List.from(SeedData.initialUsers);
 
   // ================== GETTER ==================
 
@@ -49,14 +50,19 @@ class ListUser {
     }
   }
 
+  /// Tìm user theo Email
+  UserModel? findByEmail(String email) {
+    try {
+      return _users.firstWhere((user) => user.email == email);
+    } catch (e) {
+      return null;
+    }
+  }
+
   // ================== UPDATE (EDIT) ==================
 
   /// Sửa 01 bản ghi có kiểu UserModel, có id cụ thể và lưu giữ vào ListUser
-  bool edit(String id, {
-    String? name,
-    String? email,
-    String? role,
-  }) {
+  bool edit(String id, {String? name, String? email, String? role}) {
     int index = _users.indexWhere((user) => user.id == id);
 
     if (index == -1) {
