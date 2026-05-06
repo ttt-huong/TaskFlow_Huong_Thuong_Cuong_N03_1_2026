@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_text_styles.dart';
+import '../../core/seed_data.dart';
 import '../../widgets/common/main_layout.dart';
 
 class ProjectListScreen extends StatelessWidget {
@@ -7,50 +8,56 @@ class ProjectListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final projects = SeedData.initialProjects;
+    final tasks = SeedData.initialTasks;
+
     return MainLayout(
-      title: 'Dự án',
+      title: 'DỰ ÁN',
       showImage: false,
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('2 projects', style: TextStyle(color: Colors.grey, fontSize: 14)),
-            const SizedBox(height: 16),
-            RichText(
-              text: const TextSpan(
-                text: 'Xin chào, ',
-                style: TextStyle(color: Colors.black87, fontSize: 16),
-                children: [
-                  TextSpan(
-                    text: 'Tran Thi B 👤',
-                    style: TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
+            Text(
+              '${projects.length} projects',
+              style: AppTextStyles.body.copyWith(color: Colors.grey[600]),
             ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: ListView(
-                children: const [
-                  ProjectCard(
-                    title: 'App Flutter',
-                    subtitle: 'Quản lý công việc nhóm',
-                    todo: 2, doing: 3, done: 4,
-                    progress: 0.65,
-                    progressColor: Colors.blue,
-                  ),
-                  SizedBox(height: 16),
-                  ProjectCard(
-                    title: 'Báo cáo môn học',
-                    subtitle: 'Tài liệu + slide',
-                    todo: 4, doing: 1, done: 1,
-                    progress: 0.3,
-                    progressColor: Colors.purple,
-                  ),
-                ],
-              ),
+            const SizedBox(height: 8),
+            Text(
+              'Xin chào, Trần Thị B',
+              style: AppTextStyles.h2.copyWith(color: Colors.black87),
             ),
+            const SizedBox(height: 24),
+            ...projects.map((project) {
+              final projectTasks = tasks.where(
+                (task) => task.projectId == project.id,
+              );
+              final todoCount = projectTasks
+                  .where((task) => task.status == 'todo')
+                  .length;
+              final doingCount = projectTasks
+                  .where((task) => task.status == 'doing')
+                  .length;
+              final doneCount = projectTasks
+                  .where((task) => task.status == 'done')
+                  .length;
+              final totalTasks = projectTasks.length;
+              final progress = totalTasks == 0 ? 0.0 : (doneCount / totalTasks);
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: _ProjectCard(
+                  projectName: project.name,
+                  projectDescription: project.description,
+                  memberCount: project.memberIds.length,
+                  todoCount: todoCount,
+                  doingCount: doingCount,
+                  doneCount: doneCount,
+                  progress: progress,
+                ),
+              );
+            }),
           ],
         ),
       ),
@@ -58,89 +65,150 @@ class ProjectListScreen extends StatelessWidget {
   }
 }
 
-class ProjectCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final int todo, doing, done;
+class _ProjectCard extends StatelessWidget {
+  final String projectName;
+  final String projectDescription;
+  final int memberCount;
+  final int todoCount;
+  final int doingCount;
+  final int doneCount;
   final double progress;
-  final Color progressColor;
 
-  const ProjectCard({
-    super.key,
-    required this.title,
-    required this.subtitle,
-    required this.todo,
-    required this.doing,
-    required this.done,
+  const _ProjectCard({
+    required this.projectName,
+    required this.projectDescription,
+    required this.memberCount,
+    required this.todoCount,
+    required this.doingCount,
+    required this.doneCount,
     required this.progress,
-    required this.progressColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white, // Màu nền sáng
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: Colors.black.withAlpha((0.05 * 255).round()),
+            blurRadius: 14,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
-          Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 14)),
-          const SizedBox(height: 15),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildStatusDot(Colors.red, '$todo todo'),
-              const SizedBox(width: 12),
-              _buildStatusDot(Colors.orange, '$doing doing'),
-              const SizedBox(width: 12),
-              _buildStatusDot(Colors.green, '$done done'),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      projectName,
+                      style: AppTextStyles.h2.copyWith(fontSize: 20),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      projectDescription,
+                      style: AppTextStyles.body.copyWith(
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        _StatusDot(
+                          label: '$todoCount todo',
+                          color: const Color(0xFFEA4335),
+                        ),
+                        const SizedBox(width: 8),
+                        _StatusDot(
+                          label: '$doingCount doing',
+                          color: const Color(0xFFF9A825),
+                        ),
+                        const SizedBox(width: 8),
+                        _StatusDot(
+                          label: '$doneCount done',
+                          color: const Color(0xFF34A853),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${(progress * 100).round()}%',
+                    style: AppTextStyles.h2.copyWith(
+                      fontSize: 18,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$memberCount thành viên',
+                    style: AppTextStyles.body.copyWith(color: Colors.grey[600]),
+                  ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              const Icon(Icons.group, size: 16, color: Colors.grey),
-              const SizedBox(width: 4),
-              const Text('3 thành viên', style: TextStyle(color: Colors.grey, fontSize: 12)),
-              const Spacer(),
-              Expanded(
-                flex: 2,
-                child: LinearProgressIndicator(
-                  value: progress,
-                  backgroundColor: Colors.grey.shade200,
-                  color: progressColor,
-                  borderRadius: BorderRadius.circular(10),
-                  minHeight: 8,
-                ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 14,
+              backgroundColor: Colors.grey[200],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                progress >= 0.65
+                    ? const Color(0xFF1E88E5)
+                    : const Color(0xFF7E57C2),
               ),
-              const SizedBox(width: 8),
-              Text('${(progress * 100).toInt()}%', 
-                style: TextStyle(fontWeight: FontWeight.bold, color: progressColor)
-              ),
-            ],
+            ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildStatusDot(Color color, String label) {
-    return Row(
-      children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-      ],
+class _StatusDot extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _StatusDot({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withAlpha((0.12 * 255).round()),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: AppTextStyles.body.copyWith(fontSize: 13, color: color),
+          ),
+        ],
+      ),
     );
   }
 }
