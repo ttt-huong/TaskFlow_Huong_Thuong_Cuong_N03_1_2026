@@ -48,3 +48,34 @@
 ## Ghi chu
 - File giao dien chinh: lib/main.dart
 - README nay duoc cap nhat cho nhiem vu Buoi thuc hanh 02.
+
+# 🚀 Dự án TaskFlow - Nhóm 03
+
+## 👥 Thành viên nhóm & Phân công công việc
+1. **Trần Thị Thu Hường** (Trưởng nhóm)
+   - **Phụ trách**: Xây dựng **Trang Home** (Dashboard tổng quan công việc).
+   - **Nhiệm vụ**: Thiết kế giao diện theo mẫu Figma Content, quản lý điều hướng và tích hợp Header/Footer.
+   
+2. **Nguyễn Việt Cường**
+   - **Phụ trách**: Xây dựng **Trang Content** (Danh sách dự án).
+   - **Nhiệm vụ**: Thiết kế giao diện thẻ dự án, thanh tìm kiếm và phân loại công việc.
+
+3. **Nguyễn Thị Thương**
+   - **Phụ trách**: Xây dựng **Trang About** (Hồ sơ cá nhân).
+   - **Nhiệm vụ**: Thiết kế trang Profile, hiển thị thông tin cá nhân và thống kê.
+
+---
+
+## 🔗 Thông tin nộp bài (Câu 1)
+- **Link GitHub Repository**: [https://github.com/ttt-huong/TaskFlow_Huong_Thuong_Cuong_N03_1_2026](https://github.com/ttt-huong/TaskFlow_Huong_Thuong_Cuong_N03_1_2026)
+- **Link README.md**: [https://github.com/ttt-huong/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/blob/main/README.md](https://github.com/ttt-huong/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/blob/main/README.md)
+
+---
+
+## 🛠 Kiến trúc ứng dụng
+Dự án được xây dựng trên nền tảng **Flutter** với cấu trúc thư mục chuyên nghiệp:
+- `lib/core/`: Chứa các hằng số màu sắc, font chữ và dữ liệu mẫu (SeedData).
+- `lib/models/`: Định nghĩa cấu trúc dữ liệu (User, Project, Task).
+- `lib/repositories/`: Xử lý logic dữ liệu và mock API.
+- `lib/screens/`: Chứa giao diện các màn hình chính.
+- `lib/widgets/common/`: Chứa `MainLayout` (Khung Header-Body-Footer dùng chung).
