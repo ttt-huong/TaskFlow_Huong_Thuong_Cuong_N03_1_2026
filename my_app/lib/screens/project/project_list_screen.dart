@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_text_styles.dart';
 import '../../core/seed_data.dart';
 import '../../widgets/common/main_layout.dart';
+import 'package:my_app/screens/project/bai_tap_form.dart';
 
 class ProjectListScreen extends StatelessWidget {
   const ProjectListScreen({super.key});
@@ -208,6 +209,48 @@ class _StatusDot extends StatelessWidget {
             style: AppTextStyles.body.copyWith(fontSize: 13, color: color),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class MyProjectAssignment extends StatefulWidget {
+  const MyProjectAssignment({super.key});
+
+  @override
+  State<MyProjectAssignment> createState() => _MyProjectAssignmentState();
+}
+
+class _MyProjectAssignmentState extends State<MyProjectAssignment> {
+  String _duLieuNhap = ""; // Biến lưu giá trị (Câu 1b)
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Bài tập 1: TextFieldForm")),
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          children: [
+            TextFormField(
+              decoration: const InputDecoration(
+                labelText: 'Nhập tên sản phẩm/dự án...',
+                border: OutlineInputBorder(),
+              ),
+              // Lấy dữ liệu mỗi khi gõ (Câu 1b)
+              onChanged: (value) {
+                setState(() {
+                  _duLieuNhap = value;
+                });
+              },
+            ),
+            const SizedBox(height: 20),
+            Text(
+              "Kết quả: $_duLieuNhap",
+              style: const TextStyle(fontSize: 18, color: Colors.blue),
+            ),
+          ],
+        ),
       ),
     );
   }
