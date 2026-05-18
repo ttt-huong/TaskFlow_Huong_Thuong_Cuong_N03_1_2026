@@ -10,10 +10,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'TaskFlow',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: AppColors.primary,
-        useMaterial3: true,
-      ),
+      theme: ThemeData(colorSchemeSeed: AppColors.primary, useMaterial3: true),
       initialRoute: '/',
       routes: {
         '/': (context) => const MainScreen(),

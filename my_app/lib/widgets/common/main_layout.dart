@@ -14,10 +14,12 @@ class MainLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const Color brandColor = Color(0xFF6366F1); // Modern Premium Indigo
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(showImage ? 140 : 70),
+        preferredSize: const Size.fromHeight(70),
         child: Container(
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -27,39 +29,45 @@ class MainLayout extends StatelessWidget {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.task_alt, color: Colors.black, size: 28),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'TaskFlow',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                          letterSpacing: -0.5,
+                  // Logo & Brand Name on the Left
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.task_alt, color: brandColor, size: 24),
+                        SizedBox(width: 8),
+                        Text(
+                          'TaskFlow',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Colors.black87,
+                            letterSpacing: -0.5,
+                          ),
                         ),
-                      ),
-                      const Spacer(),
-                      const Icon(Icons.menu, color: Colors.black87),
-                    ],
-                  ),
-                  if (showImage) ...[
-                    const SizedBox(height: 15),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.black87,
-                        letterSpacing: -1,
-                      ),
+                      ],
                     ),
-                  ]
+                  ),
+                  // Centered Page Title (mapped nicely for Trang Chủ)
+                  Text(
+                    title == 'TaskFlow' ? 'TRANG CHỦ' : title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Colors.black87,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  // Hamburger Menu on the Right
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: Icon(Icons.menu, color: Colors.black87),
+                  ),
                 ],
               ),
             ),

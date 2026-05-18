@@ -14,6 +14,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   String _selectedRole = 'member';
+  String _liveName = ''; // Cho Hương: Thực hành Câu 1 (Real-time)
 
   @override
   void dispose() {
@@ -65,7 +66,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             padding: const EdgeInsets.fromLTRB(24, 100, 24, 24),
             child: Card(
               elevation: 8,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(32),
                 child: Column(
@@ -77,10 +80,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     TextField(
                       controller: _nameController,
                       decoration: InputDecoration(
-                        labelText: 'Họ và tên',
+                        labelText: 'Họ và tên (Hương - Câu 1)',
                         prefixIcon: const Icon(Icons.person_outline),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        helperText: 'Dữ liệu đang nhập: $_liveName',
                       ),
+                      onChanged: (val) => setState(() => _liveName = val),
                     ),
                     const SizedBox(height: 16),
 
@@ -90,7 +97,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: InputDecoration(
                         labelText: 'Email',
                         prefixIcon: const Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -101,7 +110,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       decoration: InputDecoration(
                         labelText: 'Mật khẩu',
                         prefixIcon: const Icon(Icons.lock_outline),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -110,12 +121,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       value: _selectedRole,
                       decoration: InputDecoration(
                         labelText: 'Vai trò',
-                        prefixIcon: const Icon(Icons.admin_panel_settings_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        prefixIcon: const Icon(
+                          Icons.admin_panel_settings_outlined,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'member', child: Text('Nhân viên (Member)')),
-                        DropdownMenuItem(value: 'manager', child: Text('Quản lý (Manager)')),
+                        DropdownMenuItem(
+                          value: 'member',
+                          child: Text('Nhân viên (Member)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'manager',
+                          child: Text('Quản lý (Manager)'),
+                        ),
                       ],
                       onChanged: (val) => setState(() => _selectedRole = val!),
                     ),
@@ -129,9 +150,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: AppColors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                        child: const Text('ĐĂNG KÝ', style: AppTextStyles.button),
+                        child: const Text(
+                          'ĐĂNG KÝ',
+                          style: AppTextStyles.button,
+                        ),
                       ),
                     ),
                   ],
