@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-// Import đúng đường dẫn màn hình danh sách dự án của nhóm bạn
+// Import đúng đường dẫn các file màn hình thực tế của bạn
+import 'screens/home/home_screen.dart';
 import 'screens/project/project_list_screen.dart';
+import 'screens/user/user_list_screen.dart'; // Đã đổi theo class UserListScreen của bạn
+import 'screens/profile/profile_screen.dart';
 
 void main() {
   runApp(
@@ -44,34 +47,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget build(BuildContext context) {
     final provider = Provider.of<AppProvider>(context);
 
-    // Gom toàn bộ các màn hình về một mối, bọc Center an toàn cho các tab chưa làm
+    // Danh sách 4 màn hình thực tế chạy theo 4 nút dưới thanh điều hướng
     final List<Widget> screens = [
-      const Center(
-        child: Text(
-          'Màn hình Tổng quan (Home)',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
-      const ProjectListScreen(),
-      const Center(
-        child: Text(
-          'Màn hình Quản lý Thành viên (Team)',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
-      const Center(
-        child: Text(
-          'Màn hình Cá nhân (Profile)',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
+      const HomeScreen(), // Index 0: Màn hình Tổng quan
+      const ProjectListScreen(), // Index 1: Màn hình Dự án
+      const UserListScreen(), // Index 2: Màn hình Quản lý thành viên (Khớp với class của bạn)
+      const ProfileScreen(), // Index 3: Màn hình Cá nhân
     ];
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F111A),
       body: SafeArea(child: screens[_selectedIndex]),
 
-      // Nút đổi vai trò nổi để test phân quyền nhanh
+      // Nút nổi đổi vai trò để test phân quyền ẩn/hiện chức năng
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: Colors.pinkAccent,
         onPressed: () => provider.toggleRole(),
@@ -82,6 +70,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endTop,
 
+      // Thanh điều hướng cố định 4 nút tương ứng với 4 màn hình
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF131623),
         type: BottomNavigationBarType.fixed,
@@ -90,27 +79,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         currentIndex: _selectedIndex,
         onTap: (index) {
           setState(() {
-            _selectedIndex = index;
+            _selectedIndex = index; // Chuyển đổi vị trí Index khi bấm tab
           });
         },
-        items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled),
-            label: 'Home',
-          ),
-          const BottomNavigationBarItem(
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
+          BottomNavigationBarItem(
             icon: Icon(Icons.folder_rounded),
             label: 'Projects',
           ),
-          if (provider.isManager)
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.people_alt_rounded),
-              label: 'Team',
-            ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people_alt_rounded),
+            label: 'Team',
           ),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
     );

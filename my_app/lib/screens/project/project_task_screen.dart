@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../main.dart';
-import '../../models/task_model.dart';
+import '../../main.dart'; // Đọc AppProvider để kiểm tra quyền Manager/Member
 
 class ProjectTaskScreen extends StatefulWidget {
   final String projectName;
@@ -13,6 +12,7 @@ class ProjectTaskScreen extends StatefulWidget {
 }
 
 class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
+<<<<<<< HEAD
   String _selectedTab = 'Tất cả';
   String _selectedMemberFilter = 'Tất cả thành viên';
 
@@ -76,12 +76,16 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
       deadline: DateTime(2026, 4, 15),
     ),
   ];
+=======
+  String _selectedFilter = 'Tất cả';
+>>>>>>> 1a0af3f (Feat: Hoan thanh code phan quyen man hinh Project)
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<AppProvider>(context);
-    final isManager = provider.isManager;
+    final bool isManager = provider.isManager;
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     List<Task> displayedTasks = _mockTasks.where((task) {
       if (!isManager && task.assignedTo != 'b') return false;
@@ -91,22 +95,64 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
       if (!isManager && task.assignedTo != 'b')
         return false; // Member chỉ thấy task của mình
 >>>>>>> 868b09a (update)
+=======
+    // Danh sách data mẫu phục vụ lọc tab
+    final List<Map<String, dynamic>> mockTasks = [
+      {
+        'title': 'Viết Firebase Auth',
+        'status': 'REVIEWING',
+        'displayStatus': 'Review',
+        'statusColor': Colors.blueAccent,
+        'user': 'B',
+        'isManagerOnly': false,
+      },
+      {
+        'title': 'Thiết kế UI Login Screen',
+        'status': 'DOING',
+        'displayStatus': 'Doing',
+        'statusColor': Colors.orangeAccent,
+        'user': 'B',
+        'isManagerOnly': false,
+      },
+      {
+        'title': 'Project List Screen',
+        'status': 'TODO',
+        'displayStatus': 'Todo',
+        'statusColor': Colors.redAccent,
+        'user': 'B',
+        'isManagerOnly': false,
+      },
+      {
+        'title': 'Thiết kế UI Login',
+        'status': 'DOING',
+        'displayStatus': 'Doing',
+        'statusColor': Colors.orangeAccent,
+        'user': 'C',
+        'isManagerOnly': true,
+      },
+      {
+        'title': 'Viết báo cáo chương 2',
+        'status': 'TODO',
+        'displayStatus': 'Todo',
+        'statusColor': Colors.redAccent,
+        'user': 'A',
+        'isManagerOnly': true,
+      },
+    ];
+>>>>>>> 1a0af3f (Feat: Hoan thanh code phan quyen man hinh Project)
 
-      if (_selectedTab == 'Todo' && task.status != 'todo') return false;
-      if (_selectedTab == 'Doing' && task.status != 'doing') return false;
-      if (_selectedTab == 'Review' && task.status != 'reviewing') return false;
-      if (_selectedTab == 'Done' && task.status != 'done') return false;
+    // Lọc theo vai trò: Quyền Member chỉ thấy task của chính họ (B)
+    List<Map<String, dynamic>> roleFiltered = isManager
+        ? mockTasks
+        : mockTasks.where((task) => task['isManagerOnly'] == false).toList();
 
-      if (isManager && _selectedMemberFilter != 'Tất cả thành viên') {
-        if (_selectedMemberFilter == 'Nguyen Van A' && task.assignedTo != 'a')
-          return false;
-        if (_selectedMemberFilter == 'Tran Thi B' && task.assignedTo != 'b')
-          return false;
-        if (_selectedMemberFilter == 'Le Van C' && task.assignedTo != 'c')
-          return false;
-      }
-      return true;
-    }).toList();
+    // Lọc tiếp theo các tab "Todo", "Doing", "Review" đang click chọn trên UI
+    List<Map<String, dynamic>> finalFilteredTasks = roleFiltered;
+    if (_selectedFilter != 'Tất cả') {
+      finalFilteredTasks = roleFiltered
+          .where((task) => task['displayStatus'] == _selectedFilter)
+          .toList();
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F111A),
@@ -115,7 +161,7 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
+            Icons.arrow_back_ios_new,
             color: Colors.white,
             size: 20,
           ),
@@ -127,25 +173,46 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
             Text(
               widget.projectName,
               style: const TextStyle(
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 22,
-                color: Colors.white,
               ),
             ),
             Text(
               isManager
-                  ? '${_mockTasks.length} tasks'
-                  : '${_mockTasks.where((t) => t.assignedTo == 'b').length} tasks của bạn',
+                  ? '${mockTasks.length} tasks'
+                  : '${roleFiltered.length} tasks của bạn',
               style: const TextStyle(color: Colors.grey, fontSize: 13),
             ),
           ],
         ),
+        actions: [
+          if (isManager)
+            Padding(
+              padding: const EdgeInsets.only(
+                right: 16.0,
+                top: 8.0,
+                bottom: 8.0,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8B5CF6),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  onPressed: () {},
+                ),
+              ),
+            ),
+        ],
       ),
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+<<<<<<< HEAD
             const SizedBox(height: 16),
 <<<<<<< HEAD
 =======
@@ -205,35 +272,189 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
                   icon: const Icon(
                     Icons.keyboard_arrow_down_rounded,
                     color: Colors.grey,
+=======
+            // Thanh Filter ngang điều hướng trạng thái
+            Row(
+              children: ['Tất cả', 'Todo', 'Doing', 'Review', 'Done'].map((
+                tab,
+              ) {
+                final isSelected = _selectedFilter == tab;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedFilter = tab),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFF8B5CF6)
+                          : const Color(0xFF1E2235),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      tab,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : Colors.grey,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+>>>>>>> 1a0af3f (Feat: Hoan thanh code phan quyen man hinh Project)
                   ),
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  items:
-                      [
-                        'Tất cả thành viên',
-                        'Nguyen Van A',
-                        'Tran Thi B',
-                        'Le Van C',
-                      ].map((String val) {
-                        return DropdownMenuItem<String>(
-                          value: val,
-                          child: Text(val),
-                        );
-                      }).toList(),
-                  onChanged: (val) =>
-                      setState(() => _selectedMemberFilter = val!),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
 
+            // Dòng text phân quyền phụ ngay bên dưới thanh bộ lọc
+            isManager
+                ? Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E2235),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Tất cả thành viên',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                        SizedBox(width: 6),
+                        Icon(
+                          Icons.keyboard_arrow_down,
+                          color: Colors.grey,
+                          size: 18,
+                        ),
+                      ],
+                    ),
+                  )
+                : const Text(
+                    'Chỉ hiển thị task được gán cho bạn',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 14,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+            const SizedBox(height: 20),
+
+            // Danh sách Task Card công việc
             Expanded(
-              child: ListView.builder(
-                itemCount: displayedTasks.length,
-                itemBuilder: (context, index) {
-                  final task = displayedTasks[index];
-                  return _buildTaskCard(task, isManager);
-                },
-              ),
+              child: finalFilteredTasks.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'Không có công việc nào',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: finalFilteredTasks.length,
+                      itemBuilder: (context, index) {
+                        final task = finalFilteredTasks[index];
+                        final bool isReviewing = task['status'] == 'REVIEWING';
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 14),
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF161926),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.01),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 4,
+                                height: 45,
+                                decoration: BoxDecoration(
+                                  color: task['statusColor'] as Color,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      task['title'] as String,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color:
+                                                (task['statusColor'] as Color)
+                                                    .withOpacity(0.12),
+                                            borderRadius: BorderRadius.circular(
+                                              6,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            task['status'] as String,
+                                            style: TextStyle(
+                                              color:
+                                                  task['statusColor'] as Color,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+
+                                        // FIX LỖI 2: Đã thêm thành công 2 nút Duyệt / Từ chối thông minh inline cho Manager
+                                        if (isManager && isReviewing) ...[
+                                          _buildActionButton(
+                                            'Từ chối',
+                                            Colors.orangeAccent,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          _buildActionButton(
+                                            'Duyệt',
+                                            Colors.greenAccent,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              CircleAvatar(
+                                radius: 15,
+                                backgroundColor: Colors.blue.withOpacity(0.15),
+                                child: Text(
+                                  task['user'] as String,
+                                  style: const TextStyle(
+                                    color: Colors.blue,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -241,80 +462,21 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
     );
   }
 
-  Widget _buildTaskCard(Task task, bool isManager) {
-    Color statusColor = Colors.grey;
-    if (task.status == 'todo') statusColor = Colors.redAccent;
-    if (task.status == 'doing') statusColor = Colors.orangeAccent;
-    if (task.status == 'reviewing') statusColor = Colors.blueAccent;
-    if (task.status == 'done') statusColor = Colors.greenAccent;
-
+  Widget _buildActionButton(String text, Color color) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF161926),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.02)),
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.4), width: 1),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 4,
-            height: 42,
-            decoration: BoxDecoration(
-              color: statusColor,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task.title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    task.status.toUpperCase(),
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: Colors.blue.withOpacity(0.2),
-            child: Text(
-              task.assignedTo.toUpperCase(),
-              style: const TextStyle(
-                color: Colors.blueAccent,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
