@@ -8,11 +8,22 @@ class ProjectModel {
   String description;
   List<String> memberIds;
 
+  // ─── CHÈN THÊM CÁC THUỘC TÍNH NÀY ĐỂ HIỂN THỊ UI ───
+  int todoCount;
+  int doingCount;
+  int doneCount;
+  double progress;
+
   ProjectModel({
     required this.id,
     required this.name,
     required this.description,
     required this.memberIds,
+
+    this.todoCount = 0,
+    this.doingCount = 0,
+    this.doneCount = 0,
+    this.progress = 0.0,
   });
 
   factory ProjectModel.fromMap(Map<String, dynamic> data, String id) {
@@ -21,6 +32,11 @@ class ProjectModel {
       name: data['name'] ?? '',
       description: data['description'] ?? '',
       memberIds: List<String>.from(data['memberIds'] ?? []),
+      // ─── CHÈN THÊM ĐỂ ĐỌC DỮ LIỆU TỪ FIREBASE/MOCK DATA ───
+      todoCount: data['todoCount'] ?? 0,
+      doingCount: data['doingCount'] ?? 0,
+      doneCount: data['doneCount'] ?? 0,
+      progress: (data['progress'] ?? 0.0).toDouble(),
     );
   }
 
@@ -29,6 +45,11 @@ class ProjectModel {
       'name': name,
       'description': description,
       'memberIds': memberIds,
+
+      'todoCount': todoCount,
+      'doingCount': doingCount,
+      'doneCount': doneCount,
+      'progress': progress,
     };
   }
 
@@ -39,5 +60,6 @@ class ProjectModel {
   }
 
   @override
-  String toString() => 'ProjectModel(id: $id, name: $name)';
+  String toString() =>
+      'ProjectModel(id: $id, name: $name, progress: $progress%)';
 }

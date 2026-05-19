@@ -23,11 +23,16 @@ class Task {
   /// ID người được giao task
   String assignedTo;
 
-  /// Trạng thái: todo / doing / done
+  /// Trạng thái: todo / doing / reviewing / done
   String status;
 
   /// Hạn hoàn thành (dùng DateTime thay vì String để tránh parse lặp)
   DateTime deadline;
+
+  // ─── CHÈN THÊM CÁC THUỘC TÍNH NÀY ĐỂ ĐỔ LÊN GIAO DIỆN (UI) ───
+  String assigneeName; // Tên hiển thị người được gán (Ví dụ: Tran B)
+  String assigneeAvatar; // Ký tự chữ cái làm avatar tròn (Ví dụ: B, C)
+  bool isUrgent; // Cờ báo công việc khẩn cấp (Hiển thị biểu tượng lịch màu đỏ)
 
   // ================== CONSTRUCTOR ==================
 
@@ -39,6 +44,10 @@ class Task {
     required this.assignedTo,
     required this.status,
     required this.deadline,
+    // Giá trị mặc định để không lỗi các chỗ cũ gọi Constructor
+    this.assigneeName = '',
+    this.assigneeAvatar = '',
+    this.isUrgent = false,
   });
 
   // ================== PHƯƠNG THỨC ==================
@@ -53,6 +62,10 @@ class Task {
       assignedTo: data['assignedTo'] ?? '',
       status: data['status'] ?? 'todo',
       deadline: DateTime.tryParse(data['deadline'] ?? '') ?? DateTime.now(),
+      // ─── CHÈN THÊM ĐỂ BÓC TÁCH DỮ LIỆU UI CỦA TASK ───
+      assigneeName: data['assigneeName'] ?? '',
+      assigneeAvatar: data['assigneeAvatar'] ?? '',
+      isUrgent: data['isUrgent'] ?? false,
     );
   }
 
@@ -65,6 +78,10 @@ class Task {
       'assignedTo': assignedTo,
       'status': status,
       'deadline': deadline.toIso8601String(),
+      // ─── CHÈN THÊM ĐỂ ĐẨY LÊN DATABASE ───
+      'assigneeName': assigneeName,
+      'assigneeAvatar': assigneeAvatar,
+      'isUrgent': isUrgent,
     };
   }
 
@@ -75,7 +92,7 @@ class Task {
       'todo': ['doing'],
       'doing': ['reviewing'],
       'reviewing': ['done', 'doing'], // Duyệt xong hoặc yêu cầu sửa lại
-      'done': <String>[], 
+      'done': <String>[],
     };
 
     final allowed = validTransitions[status] ?? [];
@@ -90,9 +107,9 @@ class Task {
     return status != 'done' && DateTime.now().isAfter(deadline);
   }
 
-  /// Định dạng deadline hiển thị: YYYY-MM-DD
+  /// Định dạng deadline hiển thị: YYYY-MM-DD (Hoặc chỉnh lại dạng DD/MM cho gọn trên UI)
   String get deadlineFormatted {
-    return '${deadline.year}-${deadline.month.toString().padLeft(2, '0')}-${deadline.day.toString().padLeft(2, '0')}';
+    return '${deadline.day.toString().padLeft(2, '0')}/${deadline.month.toString().padLeft(2, '0')}';
   }
 
   /// Override toString để hiển thị nhanh

@@ -16,6 +16,10 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
   String _selectedTab = 'Tất cả';
   String _selectedMemberFilter = 'Tất cả thành viên';
 
+<<<<<<< HEAD
+=======
+  // Dữ liệu mẫu khởi tạo khớp 100% với model Task gốc của nhóm bạn
+>>>>>>> 868b09a (update)
   final List<Task> _mockTasks = [
     Task(
       id: '1',
@@ -78,8 +82,15 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
     final provider = Provider.of<AppProvider>(context);
     final isManager = provider.isManager;
 
+<<<<<<< HEAD
     List<Task> displayedTasks = _mockTasks.where((task) {
       if (!isManager && task.assignedTo != 'b') return false;
+=======
+    // Bộ lọc lọc task theo Tab và theo phân quyền Vai trò
+    List<Task> displayedTasks = _mockTasks.where((task) {
+      if (!isManager && task.assignedTo != 'b')
+        return false; // Member chỉ thấy task của mình
+>>>>>>> 868b09a (update)
 
       if (_selectedTab == 'Todo' && task.status != 'todo') return false;
       if (_selectedTab == 'Doing' && task.status != 'doing') return false;
@@ -136,6 +147,10 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 16),
+<<<<<<< HEAD
+=======
+            // Thanh chuyển đổi Tab trạng thái task dạng cuộn ngang mượt mà
+>>>>>>> 868b09a (update)
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -172,6 +187,10 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
             ),
             const SizedBox(height: 16),
 
+<<<<<<< HEAD
+=======
+            // Dropdown lọc thành viên chỉ xuất hiện nếu là Manager
+>>>>>>> 868b09a (update)
             if (isManager) ...[
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
