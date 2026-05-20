@@ -44,6 +44,12 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<AppProvider>(context);
+    bool isManager = false;
+    try {
+      isManager = (provider as dynamic).isManager ?? false;
+    } catch (_) {}
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F111A),
       appBar: AppBar(
@@ -56,6 +62,13 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
+        actions: [
+          if (isManager)
+            IconButton(
+              icon: const Icon(Icons.add, color: Colors.white),
+              onPressed: () {},
+            ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
