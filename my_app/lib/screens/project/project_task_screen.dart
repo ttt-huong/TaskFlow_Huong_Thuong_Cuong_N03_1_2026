@@ -57,10 +57,68 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
           ),
         ),
       ),
-      body: const Center(
-        child: Text(
-          'Đang tải danh sách...',
-          style: TextStyle(color: Colors.grey),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: ['Tất cả', 'Todo', 'Doing', 'Review', 'Done'].map((
+                  tab,
+                ) {
+                  final isSelected = _selectedFilter == tab;
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedFilter = tab),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF8B5CF6)
+                            : const Color(0xFF1E2235),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        tab,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.grey,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: ListView.builder(
+                itemCount: mockTasks.length,
+                itemBuilder: (context, index) {
+                  final task = mockTasks[index];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF161926),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      task['title'],
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
