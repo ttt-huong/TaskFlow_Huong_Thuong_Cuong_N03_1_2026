@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Hàm phụ trợ để kiểm tra người dùng đã đăng nhập chưa
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Lấy thông tin user document từ database để check role
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Kiểm tra xem người dùng hiện tại có phải là Manager không
+    function isManager() {
+      return isAuthenticated() && 
+        (getUserData().role == 'manager' || 
+         request.auth.token.email == 'manager@gmail.com'); // Hỗ trợ tài khoản seed
+    }
+
+    // Kiểm tra xem người dùng có thuộc dự án không
+    function isProjectMember(projectId) {
+      return isAuthenticated() && 
+        projectId != null &&
+        exists(/databases/$(database)/documents/projects/$(projectId)) &&
+        (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.memberIds);
+    }
+
+    // ==========================================
+    // 1. Rules cho Collection 'users'
+    // ==========================================
+    match /users/{userId} {
+      // Cho phép đọc thông tin nếu đã đăng nhập
+      allow read: if isAuthenticated();
+      // Chỉ cho phép tự viết/cập nhật thông tin cá nhân của chính mình
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ==========================================
+    // 2. Rules cho Collection 'projects'
+    // ==========================================
+    match /projects/{projectId} {
+      // Thành viên của project hoặc Manager mới được đọc thông tin
+      allow read: if isAuthenticated() && (
+        isManager() || (resource != null && request.auth.uid in resource.data.memberIds)
+      );
+      
+      // Chỉ Manager mới có quyền tạo, cập nhật hoặc xóa project
+      allow write: if isManager();
+    }
+
+    // ==========================================
+    // 3. Rules cho Collection 'tasks'
+    // ==========================================
+    match /tasks/{taskId} {
+      // Chỉ thành viên dự án hoặc Manager mới có quyền xem Task
+      allow read: if isAuthenticated() && (
+        isManager() || 
+        isProjectMember(resource.data.projectId) || 
+        ('projectId' in request.query && isProjectMember(request.query.projectId))
+      );
+
+      // Cho phép tạo Task mới (Chỉ dành cho Manager)
+      allow create: if isManager();
+
+      // Quyền cập nhật Task
+      allow update: if isAuthenticated() && (
+        // 1. Manager được phép cập nhật toàn bộ thuộc tính của Task
+        isManager() ||
+        
+        // 2. Member chỉ được phép cập nhật thuộc tính 'status' của Task được giao cho họ
+        (
+          resource.data.assignedTo == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+          (
+            // Ràng buộc quy tắc chuyển trạng thái hợp lệ trên Server (State Machine Safeguard)
+            (resource.data.status == 'todo' && request.resource.data.status == 'doing') ||
+            (resource.data.status == 'doing' && request.resource.data.status == 'reviewing') ||
+            (resource.data.status == 'reviewing' && request.resource.data.status == 'doing')
+          )
+        )
+      );
+
+      // Chỉ Manager mới có quyền xóa Task
+      allow delete: if isManager();
+    }
+  }
+}

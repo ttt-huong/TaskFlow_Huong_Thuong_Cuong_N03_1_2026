@@ -28,6 +28,7 @@ class AuthService {
         }
         return null;
       } catch (e) {
+        print('Firebase login failed: $e. Falling back to local DB.');
         // Try fallback to local database if firebase login fails or is slow
         return _loginLocally(email, password);
       }
@@ -84,6 +85,7 @@ class AuthService {
         await _sqliteService.cacheUser(firebaseUser);
         return firebaseUser;
       } catch (e) {
+        print('Firebase register failed: $e. Saving locally to SQLite.');
         await _sqliteService.cacheUser(newUser);
         return newUser;
       }

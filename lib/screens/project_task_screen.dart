@@ -4,6 +4,7 @@ import '../providers/auth_provider.dart';
 import '../providers/task_provider.dart';
 import '../providers/project_provider.dart';
 import '../models/task_model.dart';
+import '../models/user_model.dart';
 
 class ProjectTaskScreen extends StatefulWidget {
   final String projectId;
@@ -364,12 +365,22 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
                     final title = titleController.text.trim();
                     final desc = descController.text.trim();
                     if (title.isNotEmpty && selectedUser != null) {
+                      // Tìm user được chọn để lấy tên và avatar
+                      final user = projectProvider.allUsers.firstWhere(
+                        (u) => u.id == selectedUser,
+                        orElse: () => UserModel(id: '', name: 'Unassigned', email: '', role: 'member', password: ''),
+                      );
+                      final assigneeName = user.name;
+                      final assigneeAvatar = user.name.isNotEmpty ? user.name.substring(0, 1).toUpperCase() : '?';
+
                       await Provider.of<TaskProvider>(context, listen: false).createTask(
                         title,
                         desc,
                         widget.projectId,
                         selectedUser!,
                         DateTime.now().add(const Duration(days: 7)),
+                        assigneeName: assigneeName,
+                        assigneeAvatar: assigneeAvatar,
                       );
                       if (context.mounted) Navigator.pop(context);
                     }

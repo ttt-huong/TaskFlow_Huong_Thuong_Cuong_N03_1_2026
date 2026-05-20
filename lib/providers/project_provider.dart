@@ -47,4 +47,19 @@ class ProjectProvider extends ChangeNotifier {
     _projects.add(newProject);
     notifyListeners();
   }
+
+  Future<void> updateProject(ProjectModel project) async {
+    await _projectRepository.updateProject(project);
+    final index = _projects.indexWhere((p) => p.id == project.id);
+    if (index != -1) {
+      _projects[index] = project;
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteProject(String projectId) async {
+    await _projectRepository.deleteProject(projectId);
+    _projects.removeWhere((p) => p.id == projectId);
+    notifyListeners();
+  }
 }

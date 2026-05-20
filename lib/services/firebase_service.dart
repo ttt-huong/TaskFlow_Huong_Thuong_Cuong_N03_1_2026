@@ -73,8 +73,46 @@ class FirebaseService {
     await docRef.set(task.toMap());
   }
   
+  /// Cập nhật trạng thái Task - gửi kèm updatedAt để khớp Firestore rules
+  /// (hasOnly(['status', 'updatedAt']))
   Future<void> updateTaskStatus(String taskId, String status) async {
     if (!_isFirebaseReady) return;
-    await _firestore.collection('tasks').doc(taskId).update({'status': status});
+    await _firestore.collection('tasks').doc(taskId).update({
+      'status': status,
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Xóa một Task khỏi Firestore (Chỉ Manager mới có quyền)
+  Future<void> deleteTask(String taskId) async {
+    if (!_isFirebaseReady) return;
+    await _firestore.collection('tasks').doc(taskId).delete();
+  }
+
+  /// Xóa một Project khỏi Firestore (Chỉ Manager mới có quyền)
+  Future<void> deleteProject(String projectId) async {
+    if (!_isFirebaseReady) return;
+    await _firestore.collection('projects').doc(projectId).delete();
+  }
+
+  /// Lấy danh sách Projects mà user là thành viên
+  Future<List<ProjectModel>> getProjectsByUser(String userId) async {
+    if (!_isFirebaseReady) return [];
+    final snapshot = await _firestore
+        .collection('projects')
+        .where('memberIds', arrayContains: userId)
+        .get();
+    return snapshot.docs
+        .map((doc) => ProjectModel.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  /// Xóa toàn bộ documents trong một collection (dùng cho seed/reset data)
+  Future<void> clearCollection(String collectionName) async {
+    if (!_isFirebaseReady) return;
+    final snapshot = await _firestore.collection(collectionName).get();
+    for (var doc in snapshot.docs) {
+      await doc.reference.delete();
+    }
   }
 }
