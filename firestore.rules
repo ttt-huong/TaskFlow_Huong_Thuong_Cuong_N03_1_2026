@@ -76,8 +76,7 @@ service cloud.firestore {
           (
             // Ràng buộc quy tắc chuyển trạng thái hợp lệ trên Server (State Machine Safeguard)
             (resource.data.status == 'todo' && request.resource.data.status == 'doing') ||
-            (resource.data.status == 'doing' && request.resource.data.status == 'reviewing') ||
-            (resource.data.status == 'reviewing' && request.resource.data.status == 'doing')
+            (resource.data.status == 'doing' && request.resource.data.status == 'reviewing')
           )
         )
       );

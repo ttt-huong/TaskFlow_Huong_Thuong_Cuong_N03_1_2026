@@ -168,7 +168,7 @@ class ProfileScreen extends StatelessWidget {
                       trailing: Switch(
                         value: false,
                         onChanged: (value) {},
-                        activeColor: Colors.purple,
+                        activeThumbColor: Colors.purple,
                       ),
                     ),
                     const Divider(height: 1),
@@ -189,7 +189,7 @@ class ProfileScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
                     boxShadow: const [
                       BoxShadow(color: Colors.black12, blurRadius: 6)
                     ],

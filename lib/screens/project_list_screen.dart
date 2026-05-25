@@ -118,7 +118,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                                     color: const Color(0xFF161926),
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                      color: Colors.white.withOpacity(0.03),
+                                      color: Colors.white.withValues(alpha: 0.03),
                                     ),
                                   ),
                                   child: Column(

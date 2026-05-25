@@ -11,13 +11,17 @@ class SQLiteService {
     if (_db != null) return _db!;
     _db = await openDatabase(
       join(await getDatabasesPath(), 'taskflow.db'),
+      // Bật ràng buộc khóa ngoại để tránh dữ liệu mồ côi (Orphan Data)
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: (db, v) async {
         await db.execute(
           'CREATE TABLE tasks_local('
           'id TEXT PRIMARY KEY, '
           'title TEXT, '
           'description TEXT, '
-          'projectId TEXT, '
+          'projectId TEXT REFERENCES projects_local(id) ON DELETE CASCADE, '
           'assignedTo TEXT, '
           'status TEXT, '
           'deadline TEXT, '

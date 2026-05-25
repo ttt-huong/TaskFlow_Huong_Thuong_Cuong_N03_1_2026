@@ -1,6 +1,7 @@
 // ============================================================
 // Câu 3: Lớp Task – Đối tượng công việc trong dự án TaskFlow
 // ============================================================
+import 'package:intl/intl.dart';
 
 /// Task là một đối tượng cụ thể trong bài tập lớn TaskFlow.
 /// Mỗi Task đại diện cho một công việc được giao cho thành viên
@@ -142,9 +143,19 @@ class Task {
     return status != 'done' && DateTime.now().isAfter(deadline);
   }
 
-  /// Định dạng deadline hiển thị: YYYY-MM-DD (Hoặc chỉnh lại dạng DD/MM cho gọn trên UI)
+  /// Định dạng deadline hiển thị dạng dd/MM/yyyy dùng package intl
   String get deadlineFormatted {
-    return '${deadline.day.toString().padLeft(2, '0')}/${deadline.month.toString().padLeft(2, '0')}';
+    return DateFormat('dd/MM/yyyy').format(deadline);
+  }
+
+  /// Định dạng ngày rút gọn: dd/MM (hiển thị trên card nhỏ)
+  String get deadlineShort {
+    return DateFormat('dd/MM').format(deadline);
+  }
+
+  /// Định dạng đầy đủ có giờ: HH:mm dd/MM/yyyy
+  String get deadlineFull {
+    return DateFormat('HH:mm dd/MM/yyyy').format(deadline);
   }
 
   /// Override toString để hiển thị nhanh

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../../core/app_colors.dart';
 
 class MainLayout extends StatelessWidget {
   final String title;
@@ -14,67 +16,105 @@ class MainLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const Color brandColor = Color(0xFF6366F1); // Modern Premium Indigo
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(70),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(
-              bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: PreferredSize(
+          preferredSize: const Size.fromHeight(64),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Logo & Brand Name on the Left
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Row(
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24, vertical: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // ── Logo + Brand ──
+                    Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.task_alt, color: brandColor, size: 24),
-                        SizedBox(width: 8),
-                        Text(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: const Icon(
+                            Icons.task_alt_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
                           'TaskFlow',
                           style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: Colors.black87,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 17,
+                            color: AppColors.text,
                             letterSpacing: -0.5,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  // Centered Page Title (mapped nicely for Trang Chủ)
-                  Text(
-                    title == 'TaskFlow' ? 'TRANG CHỦ' : title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Colors.black87,
-                      letterSpacing: -0.2,
+
+                    // ── Page Label (center) ──
+                    if (title != 'TaskFlow')
+                      Text(
+                        title.toUpperCase(),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                          color: AppColors.secondaryText,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+
+                    // ── Notification Bell ──
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF0F172A)
+                                .withValues(alpha: 0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.notifications_none_rounded,
+                        color: AppColors.secondaryText,
+                        size: 20,
+                      ),
                     ),
-                  ),
-                  // Hamburger Menu on the Right
-                  const Align(
-                    alignment: Alignment.centerRight,
-                    child: Icon(Icons.menu, color: Colors.black87),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
+        body: body,
       ),
-      body: body,
     );
   }
 }

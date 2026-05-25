@@ -698,3 +698,70 @@ classDiagram
     ChangeNotifier <|-- ProjectProvider
     ChangeNotifier <|-- TaskProvider
 ```
+
+---
+
+## 11. Cấu trúc Điều hướng Bottom Navigation Bar & Tổ chức các Màn hình
+
+Ứng dụng TaskFlow tổ chức luồng giao diện thông qua một màn hình khung chính (**MainScreen**) đóng vai trò làm Router cục bộ và quản lý trạng thái điều hướng đa nhiệm qua **Bottom Navigation Bar**.
+
+### 11.1 Cấu trúc Thanh điều hướng nổi (Floating Bottom Navigation Bar)
+
+Thanh Bottom Navigation được thiết kế theo dạng **Floating Glassmorphism** (Thanh nổi bo tròn, phủ kính mờ) nằm cách đáy màn hình `24px` để tăng tính hiện đại và cao cấp cho giao diện.
+
+- **Đặc trưng phân quyền (Role-Based Tabs)**:
+  - **Manager (Quản trị viên)**: Hiển thị **4 Tabs** + **1 Nút FAB (+)** nổi bật ở giữa:
+    - Tab 0: Trang chủ (`HomeScreen`)
+    - Tab 1: Dự án (`ProjectListScreen`)
+    - [Center]: Nút **FAB (+)** thêm nhiệm vụ nhanh (`FloatingActionButton` ở vị trí `centerDocked`)
+    - Tab 2: Nhóm (`UserListScreen`)
+    - Tab 3: Hồ sơ (`ProfileScreen`)
+  - **Member (Thành viên)**: Hiển thị **3 Tabs** và **ẨN HOÀN TOÀN** nút FAB (+) ở giữa:
+    - Tab 0: Trang chủ (`HomeScreen`)
+    - Tab 1: Dự án (`ProjectListScreen`)
+    - Tab 2: Hồ sơ (`ProfileScreen`)
+
+### 11.2 Sơ đồ Điều hướng và Chuyển trang (Main Navigation Flow)
+
+Dưới đây là sơ đồ Mermaid mô tả luồng điều hướng hoạt động trong `MainScreen`:
+
+```mermaid
+flowchart TD
+    START(["👤 Đăng nhập vào App"]) --> CHECK_ROLE{Kiểm tra vai trò\ncurrentUser.role}
+    
+    CHECK_ROLE -- "isManager = true 👑" --> BUILD_MANAGER_SHELL["🏗️ Render MainScreen (Manager)\n- Hiện 4 Tabs\n- Hiện FAB (+) ở centerDocked"]
+    CHECK_ROLE -- "isManager = false 👥" --> BUILD_MEMBER_SHELL["🏗️ Render MainScreen (Member)\n- Hiện 3 Tabs\n- Ẩn FAB (+)"]
+
+    subgraph Manager Navigation Tabs
+        BUILD_MANAGER_SHELL --> M_TAB0["Tab 0: Trang chủ\nHomeScreen\n(Tổng quan nhóm & duyệt việc)"]
+        BUILD_MANAGER_SHELL --> M_TAB1["Tab 1: Dự án\nProjectListScreen\n(Xem tiến độ & quản lý dự án)"]
+        BUILD_MANAGER_SHELL --> M_FAB["⚡ Nút FAB (+)\n(Tạo việc mới gán cho thành viên)"]
+        BUILD_MANAGER_SHELL --> M_TAB2["Tab 2: Thành viên\nUserListScreen\n(Xem & quản lý nhân sự)"]
+        BUILD_MANAGER_SHELL --> M_TAB3["Tab 3: Hồ sơ\nProfileScreen\n(Thông tin tài khoản & đăng xuất)"]
+    end
+
+    subgraph Member Navigation Tabs
+        BUILD_MEMBER_SHELL --> MEM_TAB0["Tab 0: Trang chủ\nHomeScreen\n(Việc đang làm & tiến độ cá nhân)"]
+        BUILD_MEMBER_SHELL --> MEM_TAB1["Tab 1: Dự án\nProjectListScreen\n(Xem dự án tham gia & nhận việc)"]
+        BUILD_MEMBER_SHELL --> MEM_TAB2["Tab 2: Hồ sơ\nProfileScreen\n(Thông tin cá nhân)"]
+    end
+
+    style M_FAB fill:#5B5FEF,color:#fff,stroke-width:2px
+    style START fill:#4CAF50,color:#fff
+```
+
+### 11.3 Danh sách Tổ chức các Màn hình Chính (Screen Hierarchy)
+
+Toàn bộ các màn hình chính nằm dưới thư mục `lib/screens/` và được tổ chức một cách khoa học:
+
+| Tên màn hình | Đường dẫn file | Vai trò chính trong hệ thống | Phân quyền hiển thị |
+| :--- | :--- | :--- | :--- |
+| **Login Screen** | [login_screen.dart](file:///d:/Workspace/TBDD/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/lib/screens/login_screen.dart) | Màn hình xác thực đăng nhập, tích hợp xử lý ngoại tuyến. | Tất cả người dùng |
+| **Register Screen** | [register_screen.dart](file:///d:/Workspace/TBDD/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/lib/screens/register_screen.dart) | Đăng ký tài khoản mới, cho phép chọn vai trò Manager/Member. | Khách vãng lai |
+| **Main Screen** | [main_screen.dart](file:///d:/Workspace/TBDD/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/lib/screens/main_screen.dart) | Khung sườn điều hướng chung, chứa Floating Bottom NavBar. | Tất cả người dùng |
+| **Home Screen** | [home_screen.dart](file:///d:/Workspace/TBDD/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/lib/screens/home_screen.dart) | Giao diện tổng quan & quản lý nhanh việc cá nhân/nhóm. | Tất cả người dùng |
+| **Project List Screen** | [project_list_screen.dart](file:///d:/Workspace/TBDD/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/lib/screens/project_list_screen.dart) | Xem danh sách dự án. Manager có quyền Tạo/Xóa dự án. | Tất cả người dùng |
+| **Project Task Screen** | [project_task_screen.dart](file:///d:/Workspace/TBDD/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/lib/screens/project_task_screen.dart) | Hiển thị chi tiết tất cả các đầu việc của một dự án cụ thể. | Tất cả người dùng |
+| **User List Screen** | [user_list_screen.dart](file:///d:/Workspace/TBDD/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/lib/screens/user_list_screen.dart) | Danh sách thành viên phục vụ giao việc và theo dõi hiệu suất. | **Chỉ Manager** |
+| **Profile Screen** | [profile_screen.dart](file:///d:/Workspace/TBDD/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/lib/screens/profile_screen.dart) | Xem thông tin tài khoản cá nhân, đổi trạng thái và đăng xuất. | Tất cả người dùng |
+
