@@ -1,615 +1,217 @@
 import 'package:flutter/material.dart';
 import '../../widgets/common/main_layout.dart';
-import '../../widgets/common/app_footer.dart';
-import '../../core/seed_data.dart';
-import '../../models/task_model.dart';
-import '../../models/project_model.dart';
-import '../../models/user_model.dart';
 
-// ═══════════════════════════════════════════════════════════
-//  HomeScreen – Trang chủ Member & Manager (Premium Edition)
-//  Sự kết hợp giữa: Giao diện Cao cấp + Logic Bài tập nhóm
-//  • [A] Hường: Tìm kiếm nhiệm vụ
-//  • [B] Thành viên B: Lọc trạng thái / Chips lọc
-//  • [C] Thành viên C: Lọc ngày deadline
-// ═══════════════════════════════════════════════════════════
-
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  // ─── State dữ liệu (Tích hợp SeedData động) ───
-  late List<Task> _tasks;
-  late List<ProjectModel> _projects;
-  late List<UserModel> _users;
-
-  // ─── State chung ───
-  int _activeTab = 0; // 0 = Tổng quan, 1 = Nhiệm vụ
-  final String _userRole = 'member';
-
-  // ─── [A – HƯỜNG] TextField Logic ───
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-
-  // ─── [B] Dropdown/Chips Logic ───
-  String _selectedStatusChip = 'Tất cả';
-
-  // ─── [C] DatePicker Logic ───
-  final TextEditingController _dateController = TextEditingController();
-  DateTime? _selectedDate;
-
-  // ─── Thiết kế hệ màu ───
-  static const Color accentColor = Color(0xFF6366F1); // Indigo
-  static const Color secondaryColor = Color(0xFF818CF8);
-  static const String studentName = 'Trần Thị Thu Hường';
-
-  @override
-  void initState() {
-    super.initState();
-    _tasks = List.from(SeedData.initialTasks);
-    _projects = List.from(SeedData.initialProjects);
-    _users = List.from(SeedData.initialUsers);
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _dateController.dispose();
-    super.dispose();
-  }
-
-  // Định dạng ngày Tiếng Việt chuyên nghiệp
-  String _formatCurrentDate(DateTime date) {
-    const weekdays = [
-      'Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'
-    ];
-    const months = [
-      'tháng 1', 'tháng 2', 'tháng 3', 'tháng 4', 'tháng 5', 'tháng 6',
-      'tháng 7', 'tháng 8', 'tháng 9', 'tháng 10', 'tháng 11', 'tháng 12'
-    ];
-    final dayOfWeek = weekdays[date.weekday % 7];
-    final day = date.day.toString().padLeft(2, '0');
-    final month = months[date.month - 1];
-    final year = date.year;
-    return '$dayOfWeek, $day $month năm $year';
-  }
-
-  // ════════════════════════════════════════════════════════
-  //  BUILD MAIN
-  // ════════════════════════════════════════════════════════
-  @override
   Widget build(BuildContext context) {
+    // --- DỮ LIỆU MẪU (Sửa ở đây để thay đổi nội dung) ---
+    const String studentName = "Trần Thị Thu Hường";
+    const String featuredTask = "Thiết kế giao diện App TaskFlow";
+    const String deadline = "15/05";
+
+    // Màu nhấn Tím Vivid sang trọng
+    const Color accentColor = Color(0xFF8B5CF6);
+
     return MainLayout(
-      title: 'TaskFlow',
-      showImage: false,
-      body: Stack(
-        children: [
-          Container(
-            decoration: const BoxDecoration(color: Color(0xFFF8FAFC)),
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── [A – HƯỜNG] Search Bar (Tối ưu giao diện) ────
-                  _buildPremiumSearchField(),
-                  const SizedBox(height: 24),
-
-                  // ── Lời chào & Đổi vai trò linh hoạt ───────────────────
-                  _buildGreetingSection(),
-                  const SizedBox(height: 24),
-
-                  // ── Segment Control (Modern) ───────────────────
-                  _buildModernSegmentControl(),
-                  const SizedBox(height: 20),
-
-                  // ── Nội dung Tab ───────────────────────────────
-                  IndexedStack(
-                    index: _activeTab,
-                    children: [_buildTabOverview(), _buildTabMyTasks()],
-                  ),
-                  const SizedBox(height: 28),
-
-                  // ── Chân trang di động ─────────────────────────
-                  const AppFooter(),
-                ],
-              ),
-            ),
-          ),
-          if (_userRole == 'manager')
-            Positioned(
-              bottom: 24,
-              right: 20,
-              child: FloatingActionButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Tính năng tạo task mới dành cho Quản lý')),
-                  );
-                },
-                backgroundColor: accentColor,
-                child: const Icon(Icons.add, color: Colors.white, size: 28),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // ════════════════════════════════════════════════════════
-  //  [A – HƯỜNG] SEARCH FIELD
-  // ════════════════════════════════════════════════════════
-  Widget _buildPremiumSearchField() {
-    return Container(
-      decoration: BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: accentColor.withOpacity(0.08),
-            blurRadius: 15,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: TextField(
-        controller: _searchController,
-        onChanged: (value) => setState(() => _searchQuery = value),
-        decoration: InputDecoration(
-          hintText: 'Tìm kiếm nhiệm vụ...',
-          hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
-          prefixIcon: const Icon(
-            Icons.search_rounded,
-            color: accentColor,
-            size: 22,
-          ),
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  onPressed: () {
-                    _searchController.clear();
-                    setState(() => _searchQuery = '');
-                  },
-                )
-              : null,
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ════════════════════════════════════════════════════════
-  //  GREETING SECTION WITH ROLE TOGGLE
-  // ════════════════════════════════════════════════════════
-  Widget _buildGreetingSection() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Xin chào 👋',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
+      title: 'TRANG CHỦ',
+      showImage: true,
+      body: Container(
+        color: const Color(0xFFF8FAFC),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. SEGMENT CONTROL (Tổng quan / Nhiệm vụ)
+              Container(
+                margin: const EdgeInsets.only(bottom: 25),
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: accentColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: accentColor,
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      Icon(
-                        Icons.person,
-                        size: 10,
-                        color: accentColor,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        'MEMBER 👤',
-                        style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.bold,
+                padding: const EdgeInsets.all(4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
                           color: accentColor,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'Tổng quan',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              studentName,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF1E293B),
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _formatCurrentDate(DateTime.now()),
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey[500],
-              ),
-            ),
-          ],
-        ),
-        Container(
-          padding: const EdgeInsets.all(2),
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [accentColor, secondaryColor],
-            ),
-          ),
-          child: const CircleAvatar(
-            radius: 24,
-            backgroundColor: Colors.white,
-            child: Icon(
-              Icons.person_rounded,
-              color: accentColor,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ════════════════════════════════════════════════════════
-  //  MODERN SEGMENT CONTROL
-  // ════════════════════════════════════════════════════════
-  Widget _buildModernSegmentControl() {
-    return Container(
-      height: 46,
-      decoration: BoxDecoration(
-        color: const Color(0xFFE2E8F0),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: Row(
-        children: [
-          _buildSegmentItem(0, 'Tổng quan'),
-          _buildSegmentItem(1, 'Nhiệm vụ của tôi'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSegmentItem(int index, String label) {
-    final bool active = _activeTab == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _activeTab = index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: active ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: active
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 4,
                     ),
-                  ]
-                : [],
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: active ? accentColor : Colors.grey[600],
-              fontWeight: active ? FontWeight.bold : FontWeight.w600,
-              fontSize: 12,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ════════════════════════════════════════════════════════
-  //  TAB 0: TỔNG QUAN (PHÂN CHIA VAI TRÒ DỰA TRÊN REACT)
-  // ════════════════════════════════════════════════════════
-  Widget _buildTabOverview() {
-    return _buildMemberOverview();
-  }
-
-
-
-  // ─── [VAI TRÒ: MEMBER (NHÂN VIÊN)] ───
-  Widget _buildMemberOverview() {
-    final memberTasks = _tasks.where((t) => t.assignedTo == 'U002').toList();
-    final doingTasks = memberTasks.where((t) => t.status == 'doing').toList();
-    final featuredTask = doingTasks.isNotEmpty ? doingTasks.first : null;
-
-    final memberTotal = memberTasks.length;
-    final memberDoing = doingTasks.length;
-    final memberDone = memberTasks.where((t) => t.status == 'done').length;
-
-    final upcomingTasks = memberTasks.where((t) => t.status == 'todo').toList()
-      ..sort((a, b) => a.deadline.compareTo(b.deadline));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (featuredTask != null) ...[
-          _buildSectionTitle('NHIỆM VỤ NỔI BẬT'),
-          const SizedBox(height: 12),
-          // Featured Card (Purple outline gradient style)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: accentColor.withOpacity(0.06),
-              border: Border.all(color: accentColor, width: 1.8),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: accentColor.withOpacity(0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+                    const Expanded(
+                      child: Center(
+                        child: Text(
+                          'Nhiệm vụ của tôi',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              ),
+
+              // 2. LỜI CHÀO
+              RichText(
+                text: const TextSpan(
+                  style: TextStyle(color: Colors.black87, fontSize: 14),
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
+                    TextSpan(text: 'Xin chào, '),
+                    TextSpan(
+                      text: studentName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
                         color: accentColor,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'ĐANG LÀM',
-                        style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
                       ),
                     ),
-                    const Icon(Icons.bolt, color: Colors.amber, size: 22),
+                    TextSpan(text: ' 👋'),
                   ],
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  featuredTask.title,
-                  style: const TextStyle(
-                    color: Color(0xFF1E293B),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
+              ),
+              const SizedBox(height: 25),
+
+              // 3. THẺ CÔNG VIỆC NỔI BẬT (FEATURED CARD - Viền tím 1.5px)
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: accentColor.withAlpha((0.08 * 255).round()),
+                  border: Border.all(color: accentColor, width: 1.5),
+                  borderRadius: BorderRadius.circular(24),
                 ),
-                const SizedBox(height: 8),
-                Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.alarm, size: 14, color: Colors.grey),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Hạn chót: ${featuredTask.deadlineFormatted}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.w500),
+                    const Text(
+                      "TASK ĐANG THỰC HIỆN",
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: accentColor,
+                        letterSpacing: 0.5,
+                      ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        featuredTask.status = 'reviewing';
-                      });
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Đã nộp bài: "${featuredTask.title}"! Đang chờ duyệt.')),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accentColor,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(height: 12),
+                    const Text(
+                      featuredTask,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    const SizedBox(height: 8),
+                    Row(
                       children: const [
-                        Text('Nộp bài cho quản lý', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        SizedBox(width: 8),
-                        Icon(Icons.arrow_forward_rounded, size: 16),
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          size: 12,
+                          color: Colors.red,
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'Còn 1 ngày · Hạn chót: $deadline',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 28),
-        ],
-
-        _buildSectionTitle('THỐNG KÊ CHI TIẾT'),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            _buildStatCard('TỔNG', memberTotal.toString().padLeft(2, '0'), accentColor),
-            const SizedBox(width: 12),
-            _buildStatCard('DOING', memberDoing.toString().padLeft(2, '0'), Colors.orange),
-            const SizedBox(width: 12),
-            _buildStatCard('DONE', memberDone.toString().padLeft(2, '0'), Colors.green),
-          ],
-        ),
-        const SizedBox(height: 28),
-
-        _buildSectionTitle('SẮP ĐẾN HẠN'),
-        const SizedBox(height: 12),
-        if (upcomingTasks.isEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            alignment: Alignment.center,
-            child: Text(
-              'Không có nhiệm vụ sắp tới',
-              style: TextStyle(color: Colors.grey[400], fontSize: 12),
-            ),
-          )
-        else
-          ...upcomingTasks.take(3).map((task) => _buildTaskItem(task.title, task.deadlineFormatted, task.status)),
-      ],
-    );
-  }
-
-
-
-  // ════════════════════════════════════════════════════════
-  //  TAB 1: NHIỆM VỤ CỦA TÔI (CÓ LỌC CHIPS ĐỘNG THEO REACT)
-  // ════════════════════════════════════════════════════════
-  Widget _buildTabMyTasks() {
-    final currentUserId = _userRole == 'manager' ? 'U001' : 'U002';
-    final userTasks = _tasks.where((t) => t.assignedTo == currentUserId).toList();
-
-    // Chỉ số nhanh
-    final total = userTasks.length;
-    final todo = userTasks.where((t) => t.status == 'todo').length;
-    final doing = userTasks.where((t) => t.status == 'doing').length;
-    final done = userTasks.where((t) => t.status == 'done').length;
-
-    // Lọc theo Tìm kiếm [A] + Status Chips [B] + Hạn chót [C]
-    final filteredTasks = userTasks.where((t) {
-      final bool matchesSearch = _searchQuery.isEmpty || t.title.toLowerCase().contains(_searchQuery.toLowerCase());
-      final bool matchesStatus = _selectedStatusChip == 'Tất cả' || t.status == _selectedStatusChip.toLowerCase();
-      bool matchesDate = true;
-      if (_selectedDate != null) {
-        matchesDate = t.deadline.year == _selectedDate!.year &&
-            t.deadline.month == _selectedDate!.month &&
-            t.deadline.day == _selectedDate!.day;
-      }
-      return matchesSearch && matchesStatus && matchesDate;
-    }).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 4-Column Stats Row
-        Row(
-          children: [
-            _buildSmallStatCard('TỔNG', total.toString(), Colors.blue),
-            const SizedBox(width: 8),
-            _buildSmallStatCard('TODO', todo.toString(), Colors.redAccent),
-            const SizedBox(width: 8),
-            _buildSmallStatCard('DOING', doing.toString(), Colors.orange),
-            const SizedBox(width: 8),
-            _buildSmallStatCard('DONE', done.toString(), Colors.green),
-          ],
-        ),
-        const SizedBox(height: 24),
-
-        // Horizontal Filter Chips giống React
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            children: ['Tất cả', 'Todo', 'Doing', 'Reviewing', 'Done'].map((status) {
-              final isSelected = _selectedStatusChip == status;
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedStatusChip = status;
-                  });
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isSelected ? accentColor : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected ? accentColor : const Color(0xFFE2E8F0),
-                    ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: accentColor.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () {},
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: accentColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
                             ),
-                          ]
-                        : [],
-                  ),
-                  child: Text(
-                    status,
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.grey[700],
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                      fontSize: 12,
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'Nộp bài →',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                  ],
                 ),
-              );
-            }).toList(),
+              ),
+
+              const SizedBox(height: 30),
+
+              // 4. STATS
+              Row(
+                children: [
+                  _buildStatBox('TỔNG', '12', Colors.blue),
+                  const SizedBox(width: 12),
+                  _buildStatBox('ĐANG LÀM', '05', Colors.orange),
+                  const SizedBox(width: 12),
+                  _buildStatBox('HOÀN THÀNH', '07', Colors.green),
+                ],
+              ),
+
+              const SizedBox(height: 30),
+
+              // 5. LIST SẮP ĐẾN HẠN
+              const Text(
+                "SẮP ĐẾN HẠN",
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              _buildTaskItem('Viết báo cáo giữa kỳ', '08/05', accentColor),
+              _buildTaskItem('Họp nhóm 03 Phenikaa', '10/05', accentColor),
+              _buildTaskItem('Kiểm thử chức năng', '12/05', accentColor),
+            ],
           ),
         ),
-        const SizedBox(height: 20),
-
-        // ── [C] DATEPICKER: Lọc ngày ─────────────────────
-        _buildModernFilterLabel('LỌC THEO HẠN CHÓT'),
-        _buildModernDatePicker(),
-        const SizedBox(height: 24),
-
-        _buildSectionTitle('DANH SÁCH NHIỆM VỤ (${filteredTasks.length})'),
-        const SizedBox(height: 12),
-
-        if (filteredTasks.isEmpty)
-          _buildEmptyState()
-        else
-          ...filteredTasks.map((t) => _buildTaskItem(t.title, t.deadlineFormatted, t.status)),
-      ],
+      ),
     );
   }
 
-  // ════════════════════════════════════════════════════════
-  //  PREMIUM UI COMPONENTS
-  // ════════════════════════════════════════════════════════
-  Widget _buildStatCard(String label, String value, Color color) {
+  Widget _buildStatBox(String label, String value, Color color) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
+          border: Border.all(color: Colors.grey.withAlpha((0.1 * 255).round())),
         ),
         child: Column(
           children: [
             Text(
               value,
               style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
                 color: color,
               ),
             ),
@@ -617,9 +219,9 @@ class _HomeScreenState extends State<HomeScreen> {
             Text(
               label,
               style: const TextStyle(
-                fontSize: 9,
-                color: Colors.grey,
+                fontSize: 10,
                 fontWeight: FontWeight.bold,
+                color: Colors.grey,
               ),
             ),
           ],
@@ -628,42 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSmallStatCard(String label, String value, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 8,
-                color: Colors.grey,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTaskItem(String title, String deadline, String status) {
-    final Color sColor = _statusColor(status);
+  Widget _buildTaskItem(String title, String deadline, Color accent) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -671,20 +238,23 @@ class _HomeScreenState extends State<HomeScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withAlpha((0.02 * 255).round()),
+            blurRadius: 10,
+          ),
         ],
       ),
       child: Row(
         children: [
           Container(
             width: 4,
-            height: 40,
+            height: 36,
             decoration: BoxDecoration(
-              color: sColor,
-              borderRadius: BorderRadius.circular(4),
+              color: Colors.red,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -697,156 +267,49 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 6),
+                // Status Chip
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
-                    vertical: 2,
+                    vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: sColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
+                    color: Colors.red.withAlpha((0.12 * 255).round()),
+                    borderRadius: BorderRadius.circular(99),
                   ),
-                  child: Text(
-                    status,
+                  child: const Text(
+                    '● Todo',
                     style: TextStyle(
-                      color: sColor,
-                      fontSize: 9,
+                      fontSize: 10,
                       fontWeight: FontWeight.bold,
+                      color: Colors.red,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          Text(
-            deadline,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-            ),
+          // Deadline
+          Row(
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                size: 12,
+                color: Colors.red,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                deadline,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
-  }
-
-  Widget _buildModernFilterLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8, left: 4),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          color: Colors.grey,
-          letterSpacing: 1,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildModernDatePicker() {
-    return TextField(
-      controller: _dateController,
-      readOnly: true,
-      onTap: () async {
-        final d = await showDatePicker(
-          context: context,
-          initialDate: DateTime.now(),
-          firstDate: DateTime(2024),
-          lastDate: DateTime(2030),
-        );
-        if (d != null) {
-          setState(() {
-            _selectedDate = d;
-            _dateController.text =
-                '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-          });
-        }
-      },
-      decoration: InputDecoration(
-        hintText: 'Chọn ngày deadline...',
-        prefixIcon: const Icon(
-          Icons.calendar_today,
-          size: 18,
-          color: accentColor,
-        ),
-        suffixIcon: _selectedDate != null
-            ? IconButton(
-                icon: const Icon(Icons.close, size: 16),
-                onPressed: () => setState(() {
-                  _selectedDate = null;
-                  _dateController.clear();
-                }),
-              )
-            : null,
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
-        ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 12),
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w800,
-        color: Color(0xFF64748B),
-        letterSpacing: 1.2,
-      ),
-    );
-  }
-
-
-  Widget _buildEmptyState() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      alignment: Alignment.center,
-      child: Column(
-        children: [
-          Icon(Icons.search_off_rounded, size: 48, color: Colors.grey[300]),
-          const SizedBox(height: 12),
-          const Text(
-            'Không có kết quả',
-            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _statusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'todo':
-        return Colors.redAccent;
-      case 'doing':
-        return Colors.orange;
-      case 'reviewing':
-        return Colors.blue;
-      case 'done':
-        return Colors.green;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _getStatusIcon(String status) {
-    switch (status.toLowerCase()) {
-      case 'done':
-        return Icons.check_circle_rounded;
-      case 'doing':
-        return Icons.play_circle_fill_rounded;
-      case 'reviewing':
-        return Icons.rate_review_rounded;
-      default:
-        return Icons.pending_actions_rounded;
-    }
   }
 }

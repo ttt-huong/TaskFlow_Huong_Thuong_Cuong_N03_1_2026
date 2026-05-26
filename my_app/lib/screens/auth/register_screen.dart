@@ -14,7 +14,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   String _selectedRole = 'member';
-  String _liveName = ''; // Cho Hương: Thực hành Câu 1 (Real-time)
 
   @override
   void dispose() {
@@ -80,14 +79,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     TextField(
                       controller: _nameController,
                       decoration: InputDecoration(
-                        labelText: 'Họ và tên (Hương - Câu 1)',
+                        labelText: 'Họ và tên',
                         prefixIcon: const Icon(Icons.person_outline),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        helperText: 'Dữ liệu đang nhập: $_liveName',
                       ),
-                      onChanged: (val) => setState(() => _liveName = val),
                     ),
                     const SizedBox(height: 16),
 
@@ -118,7 +115,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 16),
 
                     DropdownButtonFormField<String>(
-                      value: _selectedRole,
+                      initialValue: _selectedRole,
                       decoration: InputDecoration(
                         labelText: 'Vai trò',
                         prefixIcon: const Icon(
