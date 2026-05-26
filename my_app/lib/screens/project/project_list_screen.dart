@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../core/app_text_styles.dart';
 import '../../core/seed_data.dart';
 import '../../widgets/common/main_layout.dart';
-import 'package:my_app/screens/project/bai_tap_form.dart';
 
 class ProjectListScreen extends StatelessWidget {
   const ProjectListScreen({super.key});
@@ -93,7 +92,7 @@ class _ProjectCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha((0.05 * 255).round()),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 14,
             offset: const Offset(0, 8),
           ),

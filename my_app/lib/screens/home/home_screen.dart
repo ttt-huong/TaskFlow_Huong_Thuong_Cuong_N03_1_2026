@@ -44,17 +44,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-
-              // 2. TAB CONTENT
-              IndexedStack(
-                index: _activeTab,
-                children: [
-                  _buildOverviewTab(studentName, featuredTask, deadline, accentColor, key: const ValueKey('overview_tab')),
-                  _buildMyTasksTab(accentColor, key: const ValueKey('tasks_tab')),
-                ],
-              ),
-
-              const SizedBox(height: 80),
+              if (_activeTab == 0)
+                _buildOverviewTab(studentName, featuredTask, deadline, accentColor)
+              else
+                _buildMyTasksTab(accentColor),
+              const SizedBox(height: 30),
               _buildModernFooter(),
             ],
           ),
@@ -110,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
             color: Colors.white,
             border: Border.all(color: const Color(0xFFF1F5F9), width: 1),
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 20, offset: const Offset(0, 10))],
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 20, offset: const Offset(0, 10))],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -205,7 +199,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFF1F5F9))),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+      ),
       child: Row(
         children: [
           Expanded(
@@ -220,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
             child: Text(status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
           ),
         ],
