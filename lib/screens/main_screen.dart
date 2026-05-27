@@ -1,0 +1,464 @@
+import 'dart:ui';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../core/app_colors.dart';
+import '../providers/auth_provider.dart';
+import '../providers/project_provider.dart';
+import '../providers/task_provider.dart';
+import 'home_screen.dart';
+import 'project_list_screen.dart';
+import 'user_list_screen.dart';
+import 'profile_screen.dart';
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  int _currentIndex = 0;
+
+  final List<Widget> _managerPages = [
+    const HomeScreen(),
+    const ProjectListScreen(),
+    const UserListScreen(),
+    const ProfileScreen(),
+  ];
+
+  final List<Widget> _memberPages = [
+    const HomeScreen(),
+    const ProjectListScreen(),
+    const ProfileScreen(),
+  ];
+
+  List<_NavItem> _getNavItems(String role) {
+    if (role == 'manager') {
+      return const [
+        _NavItem(Icons.home_outlined, Icons.home_rounded, 'Trang chủ'),
+        _NavItem(Icons.folder_outlined, Icons.folder_rounded, 'Dự án'),
+        _NavItem(Icons.group_outlined, Icons.group_rounded, 'Nhóm'),
+        _NavItem(Icons.person_outline_rounded, Icons.person_rounded, 'Hồ sơ'),
+      ];
+    } else {
+      return const [
+        _NavItem(Icons.home_outlined, Icons.home_rounded, 'Trang chủ'),
+        _NavItem(Icons.folder_outlined, Icons.folder_rounded, 'Dự án'),
+        _NavItem(Icons.person_outline_rounded, Icons.person_rounded, 'Hồ sơ'),
+      ];
+    }
+  }
+
+  void _showCreateTaskSheet(BuildContext context) {
+    final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
+    final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    // Load projects and users in the background
+    final currentUser = authProvider.currentUser;
+    if (currentUser != null) {
+      projectProvider.loadProjects(currentUser);
+      projectProvider.loadAllUsers();
+    }
+
+    final titleController = TextEditingController();
+    final descController = TextEditingController();
+    String? selectedProjectId;
+    String? selectedUserId;
+    DateTime? selectedDeadline = DateTime.now().add(const Duration(days: 3));
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final projects = projectProvider.projects;
+            final users = projectProvider.allUsers;
+
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 48,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Tạo nhiệm vụ mới',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.text,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: titleController,
+                    decoration: InputDecoration(
+                      hintText: 'Tiêu đề nhiệm vụ',
+                      filled: true,
+                      fillColor: const Color(0xFFF8F9FD),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: 'Mô tả chi tiết',
+                      filled: true,
+                      fillColor: const Color(0xFFF8F9FD),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Project dropdown
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedProjectId,
+                    hint: const Text('Chọn dự án'),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFFF8F9FD),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    items: projects.map((p) {
+                      return DropdownMenuItem<String>(
+                        value: p.id,
+                        child: Text(p.name),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      setSheetState(() {
+                        selectedProjectId = val;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  // Assignee dropdown
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedUserId,
+                    hint: const Text('Giao cho thành viên'),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFFF8F9FD),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    items: users.map((u) {
+                      return DropdownMenuItem<String>(
+                        value: u.id,
+                        child: Text(u.name),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      setSheetState(() {
+                        selectedUserId = val;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  // Deadline row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Hạn chót:',
+                        style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.secondaryText),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.primary),
+                        label: Text(
+                          selectedDeadline == null
+                              ? 'Chọn ngày'
+                              : '${selectedDeadline!.day.toString().padLeft(2, '0')}/${selectedDeadline!.month.toString().padLeft(2, '0')}/${selectedDeadline!.year}',
+                          style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: () async {
+                          final d = await showDatePicker(
+                            context: context,
+                            initialDate: selectedDeadline ?? DateTime.now(),
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime(2030),
+                          );
+                          if (d != null) {
+                            setSheetState(() {
+                              selectedDeadline = d;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final title = titleController.text.trim();
+                        final desc = descController.text.trim();
+                        if (title.isNotEmpty && selectedProjectId != null && selectedUserId != null) {
+                          final user = users.firstWhere((u) => u.id == selectedUserId);
+                          final assigneeName = user.name;
+                          final assigneeAvatar = user.name.isNotEmpty ? user.name[0].toUpperCase() : '?';
+
+                          await taskProvider.createTask(
+                            title,
+                            desc,
+                            selectedProjectId!,
+                            selectedUserId!,
+                            selectedDeadline ?? DateTime.now().add(const Duration(days: 3)),
+                            assigneeName: assigneeName,
+                            assigneeAvatar: assigneeAvatar,
+                          );
+
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Đã tạo nhiệm vụ: "$title"'),
+                                backgroundColor: AppColors.primary,
+                              ),
+                            );
+                          }
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Vui lòng điền đầy đủ thông tin'),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'Tạo nhiệm vụ',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+    final role = authProvider.currentUser?.role ?? 'member';
+    final pages = role == 'manager' ? _managerPages : _memberPages;
+    final navItems = _getNavItems(role);
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: Stack(
+        children: [
+          // ── Page content ──
+          pages[_currentIndex],
+        ],
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: role == 'manager'
+          ? Container(
+              width: 64,
+              height: 64,
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: FloatingActionButton(
+                onPressed: () => _showCreateTaskSheet(context),
+                backgroundColor: AppColors.primary,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                child: const Icon(Icons.add, color: Colors.white, size: 28),
+              ),
+            )
+          : null,
+      // Floating nav bar placed above FAB (space for center)
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.only(left: 20, right: 20, bottom: 24),
+        child: _FloatingNavBar(
+          items: navItems,
+          currentIndex: _currentIndex,
+          onTap: (i) {
+            if (_currentIndex != i) {
+              setState(() => _currentIndex = i);
+              if (i == 0) {
+                final user = authProvider.currentUser;
+                if (user != null) {
+                  final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+                  if (user.isManager) {
+                    taskProvider.loadAllTasks();
+                  } else {
+                    taskProvider.loadMyTasks(user.id);
+                  }
+                }
+              }
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Data class ───
+class _NavItem {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  const _NavItem(this.icon, this.activeIcon, this.label);
+}
+
+// ─── Floating NavBar Widget ───
+class _FloatingNavBar extends StatelessWidget {
+  final List<_NavItem> items;
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  const _FloatingNavBar({
+    required this.items,
+    required this.currentIndex,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(30),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.90),
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: () {
+              final List<Widget> children = [];
+              final int mid = (items.length / 2).floor();
+              for (int i = 0; i < items.length; i++) {
+                if (i == mid) {
+                  // reserve center gap for FAB
+                  children.add(const SizedBox(width: 64));
+                }
+                final item = items[i];
+                final active = currentIndex == i;
+                children.add(GestureDetector(
+                  onTap: () => onTap(i),
+                  behavior: HitTestBehavior.opaque,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: active
+                          ? AppColors.primary.withValues(alpha: 0.10)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          active ? item.activeIcon : item.icon,
+                          color: active
+                              ? AppColors.primary
+                              : AppColors.secondaryText,
+                          size: 22,
+                        ),
+                        if (active) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            item.label,
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ));
+              }
+              return children;
+            }(),
+          ),
+          ),
+        ),
+      ),
+    );
+  }
+}
