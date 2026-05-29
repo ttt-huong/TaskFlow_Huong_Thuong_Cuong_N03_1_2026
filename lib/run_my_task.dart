@@ -55,7 +55,7 @@ class _BaiTapFormState extends State<BaiTapForm> {
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              value: selectedPriority,
+              initialValue: selectedPriority,
               decoration: const InputDecoration(border: OutlineInputBorder()),
               items: priorities.map((String value) {
                 return DropdownMenuItem<String>(

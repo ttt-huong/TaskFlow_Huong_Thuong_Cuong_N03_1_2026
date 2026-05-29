@@ -11,9 +11,27 @@ class SQLiteService {
     if (_db != null) return _db!;
     _db = await openDatabase(
       join(await getDatabasesPath(), 'taskflow.db'),
+      // Bật ràng buộc khóa ngoại để tránh dữ liệu mồ côi (Orphan Data)
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: (db, v) async {
         await db.execute(
-          'CREATE TABLE tasks_local(id TEXT PRIMARY KEY, title TEXT, description TEXT, projectId TEXT, assignedTo TEXT, status TEXT, deadline TEXT, syncedAt TEXT)',
+          'CREATE TABLE tasks_local('
+          'id TEXT PRIMARY KEY, '
+          'title TEXT, '
+          'description TEXT, '
+          'projectId TEXT REFERENCES projects_local(id) ON DELETE CASCADE, '
+          'assignedTo TEXT, '
+          'status TEXT, '
+          'deadline TEXT, '
+          'syncedAt TEXT, '
+          'assigneeName TEXT, '
+          'assigneeAvatar TEXT, '
+          'isUrgent INTEGER DEFAULT 0, '
+          'updatedAt TEXT, '
+          'isSynced INTEGER DEFAULT 1'
+          ')',
         );
         await db.execute(
           'CREATE TABLE projects_local(id TEXT PRIMARY KEY, name TEXT, description TEXT, memberIds TEXT, syncedAt TEXT)',
@@ -28,21 +46,46 @@ class SQLiteService {
             await db.execute('ALTER TABLE users_local ADD COLUMN avatarChar TEXT');
           } catch (_) {}
         }
+        if (oldVersion < 3) {
+          try {
+            await db.execute('ALTER TABLE tasks_local ADD COLUMN assigneeName TEXT');
+            await db.execute('ALTER TABLE tasks_local ADD COLUMN assigneeAvatar TEXT');
+            await db.execute('ALTER TABLE tasks_local ADD COLUMN isUrgent INTEGER DEFAULT 0');
+            await db.execute('ALTER TABLE tasks_local ADD COLUMN updatedAt TEXT');
+            await db.execute('ALTER TABLE tasks_local ADD COLUMN isSynced INTEGER DEFAULT 1');
+          } catch (_) {}
+        }
       },
-      version: 2,
+      version: 3,
     );
     return _db!;
   }
 
   // --- Tasks ---
-  Future<void> cacheTask(Task task) async {
+  Future<void> cacheTask(Task task, {bool isSynced = true}) async {
     final database = await db;
+    // Kiểm tra xem Project cha có tồn tại không để tránh dữ liệu mồ côi (Orphan Data)
+    final projectCheck = await database.query(
+      'projects_local',
+      where: 'id = ?',
+      whereArgs: [task.projectId],
+    );
+    final anyProjects = await database.query('projects_local', limit: 1);
+    if (anyProjects.isNotEmpty && projectCheck.isEmpty) {
+      throw Exception("Dự án '${task.projectId}' không tồn tại! Không thể thêm nhiệm vụ.");
+    }
+    
+    final map = task.toMap();
+    // Chuyển đổi boolean sang integer cho SQLite
+    map['isUrgent'] = task.isUrgent ? 1 : 0;
+    
     await database.insert(
       'tasks_local',
       {
-        ...task.toMap(),
+        ...map,
         'id': task.id,
-        'syncedAt': DateTime.now().toIso8601String()
+        'syncedAt': DateTime.now().toIso8601String(),
+        'isSynced': isSynced ? 1 : 0,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -74,6 +117,37 @@ class SQLiteService {
     return maps.map((m) => Task.fromMap(m, m['id'] as String)).toList();
   }
 
+  Future<List<Task>> getUnsyncedTasks() async {
+    final database = await db;
+    final maps = await database.query(
+      'tasks_local',
+      where: 'isSynced = 0',
+    );
+    return maps.map((m) => Task.fromMap(m, m['id'] as String)).toList();
+  }
+
+  Future<void> markTaskSynced(String taskId) async {
+    final database = await db;
+    await database.update(
+      'tasks_local',
+      {
+        'isSynced': 1,
+        'syncedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [taskId],
+    );
+  }
+
+  Future<void> deleteTask(String taskId) async {
+    final database = await db;
+    await database.delete(
+      'tasks_local',
+      where: 'id = ?',
+      whereArgs: [taskId],
+    );
+  }
+
   // --- Projects ---
   Future<void> cacheProject(ProjectModel project) async {
     final database = await db;
@@ -98,6 +172,21 @@ class SQLiteService {
       data['memberIds'] = (data['memberIds'] as String).split(',').where((e) => e.isNotEmpty).toList();
       return ProjectModel.fromMap(data, m['id'] as String);
     }).toList();
+  }
+
+  Future<void> deleteProject(String projectId) async {
+    final database = await db;
+    await database.delete(
+      'projects_local',
+      where: 'id = ?',
+      whereArgs: [projectId],
+    );
+    // Also delete tasks associated with this project
+    await database.delete(
+      'tasks_local',
+      where: 'projectId = ?',
+      whereArgs: [projectId],
+    );
   }
 
   // --- Users ---

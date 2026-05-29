@@ -1,6 +1,7 @@
 // ============================================================
 // Câu 3: Lớp Task – Đối tượng công việc trong dự án TaskFlow
 // ============================================================
+import 'package:intl/intl.dart';
 
 /// Task là một đối tượng cụ thể trong bài tập lớn TaskFlow.
 /// Mỗi Task đại diện cho một công việc được giao cho thành viên
@@ -23,7 +24,7 @@ class Task {
   /// ID người được giao task
   String assignedTo;
 
-  /// Trạng thái: todo / doing / reviewing / done
+  /// Trạng thái: todo / doing / reviewing / done / cancelled / archived
   String status;
 
   /// Hạn hoàn thành (dùng DateTime thay vì String để tránh parse lặp)
@@ -33,6 +34,29 @@ class Task {
   String assigneeName; // Tên hiển thị người được gán (Ví dụ: Tran B)
   String assigneeAvatar; // Ký tự chữ cái làm avatar tròn (Ví dụ: B, C)
   bool isUrgent; // Cờ báo công việc khẩn cấp (Hiển thị biểu tượng lịch màu đỏ)
+  DateTime updatedAt; // Ngày cập nhật gần nhất để xử lý xung đột đồng bộ
+
+  // ================== DANH SÁCH TRẠNG THÁI HỢP LỆ ==================
+
+  /// Tất cả các trạng thái hợp lệ của một Task
+  static const List<String> validStatuses = [
+    'todo', 'doing', 'reviewing', 'done', 'cancelled', 'archived',
+  ];
+
+  /// Ma trận chuyển đổi trạng thái hợp lệ (Adjacency List)
+  /// - todo → doing (Member nhận việc), cancelled (Manager hủy)
+  /// - doing → reviewing (Member nộp bài), todo (quay lại), cancelled (Manager hủy)
+  /// - reviewing → done (Manager duyệt), doing (Manager từ chối), cancelled (Manager hủy)
+  /// - done → archived (Manager lưu trữ)
+  /// - cancelled, archived → không chuyển tiếp được (Trạng thái cuối cùng)
+  static final Map<String, Set<String>> allowedTransitions = {
+    'todo': {'doing', 'cancelled'},
+    'doing': {'reviewing', 'todo', 'cancelled'},
+    'reviewing': {'done', 'doing', 'cancelled'},
+    'done': {'archived'},
+    'cancelled': <String>{},
+    'archived': <String>{},
+  };
 
   // ================== CONSTRUCTOR ==================
 
@@ -48,7 +72,8 @@ class Task {
     this.assigneeName = '',
     this.assigneeAvatar = '',
     this.isUrgent = false,
-  });
+    DateTime? updatedAt,
+  }) : updatedAt = updatedAt ?? DateTime.now();
 
   // ================== PHƯƠNG THỨC ==================
 
@@ -65,7 +90,8 @@ class Task {
       // ─── CHÈN THÊM ĐỂ BÓC TÁCH DỮ LIỆU UI CỦA TASK ───
       assigneeName: data['assigneeName'] ?? '',
       assigneeAvatar: data['assigneeAvatar'] ?? '',
-      isUrgent: data['isUrgent'] ?? false,
+      isUrgent: (data['isUrgent'] == 1 || data['isUrgent'] == true),
+      updatedAt: DateTime.tryParse(data['updatedAt'] ?? '') ?? DateTime.now(),
     );
   }
 
@@ -82,21 +108,31 @@ class Task {
       'assigneeName': assigneeName,
       'assigneeAvatar': assigneeAvatar,
       'isUrgent': isUrgent,
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
-  /// Cập nhật trạng thái task theo luồng: todo → doing → reviewing → done
-  /// Chỉ cho phép chuyển trạng thái hợp lệ theo đúng thứ tự
-  bool updateStatus(String newStatus) {
-    const validTransitions = {
-      'todo': ['doing'],
-      'doing': ['reviewing'],
-      'reviewing': ['done', 'doing'], // Duyệt xong hoặc yêu cầu sửa lại
-      'done': <String>[],
-    };
+  /// Kiểm tra xem có thể chuyển sang trạng thái mới hay không
+  bool canTransitionTo(String newStatus) {
+    return allowedTransitions[status]?.contains(newStatus) ?? false;
+  }
 
-    final allowed = validTransitions[status] ?? [];
-    if (!allowed.contains(newStatus)) return false;
+  /// Kiểm tra tính hợp lệ của việc chuyển trạng thái (trả về thông báo lỗi hoặc null nếu hợp lệ)
+  static String? validateTransition(String current, String next) {
+    if (!validStatuses.contains(next)) {
+      return "Trạng thái '$next' không hợp lệ";
+    }
+    if (!(allowedTransitions[current]?.contains(next) ?? false)) {
+      return "Không thể chuyển từ '$current' sang '$next'";
+    }
+    return null; // Hợp lệ
+  }
+
+  /// Cập nhật trạng thái task theo ma trận chuyển đổi hợp lệ
+  /// Trả về `Future<bool>` để hỗ trợ xử lý bất đồng bộ và báo lỗi
+  Future<bool> updateStatus(String newStatus) async {
+    final error = validateTransition(status, newStatus);
+    if (error != null) return false;
 
     status = newStatus;
     return true;
@@ -107,9 +143,19 @@ class Task {
     return status != 'done' && DateTime.now().isAfter(deadline);
   }
 
-  /// Định dạng deadline hiển thị: YYYY-MM-DD (Hoặc chỉnh lại dạng DD/MM cho gọn trên UI)
+  /// Định dạng deadline hiển thị dạng dd/MM/yyyy dùng package intl
   String get deadlineFormatted {
-    return '${deadline.day.toString().padLeft(2, '0')}/${deadline.month.toString().padLeft(2, '0')}';
+    return DateFormat('dd/MM/yyyy').format(deadline);
+  }
+
+  /// Định dạng ngày rút gọn: dd/MM (hiển thị trên card nhỏ)
+  String get deadlineShort {
+    return DateFormat('dd/MM').format(deadline);
+  }
+
+  /// Định dạng đầy đủ có giờ: HH:mm dd/MM/yyyy
+  String get deadlineFull {
+    return DateFormat('HH:mm dd/MM/yyyy').format(deadline);
   }
 
   /// Override toString để hiển thị nhanh

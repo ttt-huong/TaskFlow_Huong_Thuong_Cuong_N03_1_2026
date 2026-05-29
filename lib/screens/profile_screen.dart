@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../widgets/common/main_layout.dart';
 import '../providers/auth_provider.dart';
+import '../services/firebase_seed_data.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -167,7 +168,7 @@ class ProfileScreen extends StatelessWidget {
                       trailing: Switch(
                         value: false,
                         onChanged: (value) {},
-                        activeColor: Colors.purple,
+                        activeThumbColor: Colors.purple,
                       ),
                     ),
                     const Divider(height: 1),
@@ -181,6 +182,67 @@ class ProfileScreen extends StatelessWidget {
               ),
 
               const SizedBox(height: 20),
+
+              // ===== DEBUG OPTIONS =====
+              if (userRole == 'manager') ...[
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black12, blurRadius: 6)
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      const ListTile(
+                        title: Text('DEBUG / SEED DATA', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                        dense: true,
+                      ),
+                      const Divider(height: 1),
+                      buildOption(
+                        Icons.add_to_drive,
+                        'Seed Firebase Data',
+                        onTap: () async {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Đang tạo dữ liệu mẫu...')),
+                          );
+                          final success = await FirebaseSeedData.seedAll();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(success ? 'Tạo dữ liệu thành công!' : 'Tạo dữ liệu thất bại!'),
+                                backgroundColor: success ? Colors.green : Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      const Divider(height: 1),
+                      buildOption(
+                        Icons.delete_forever,
+                        'Clear Firebase Data',
+                        onTap: () async {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Đang xóa dữ liệu...')),
+                          );
+                          final success = await FirebaseSeedData.clearAll();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(success ? 'Xóa dữ liệu thành công!' : 'Xóa dữ liệu thất bại!'),
+                                backgroundColor: success ? Colors.green : Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
 
               // ===== LOGOUT =====
               SizedBox(

@@ -70,7 +70,10 @@ class ProjectRepositoryImpl implements ProjectRepository {
 
   @override
   Future<void> deleteProject(String id) async {
-    // Để đơn giản, không xóa offline
+    if (await _hasNetwork()) {
+      await _firebaseService.deleteProject(id);
+    }
+    await _sqliteService.deleteProject(id);
   }
 
   @override
