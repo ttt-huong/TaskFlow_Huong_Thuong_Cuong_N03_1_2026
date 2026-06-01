@@ -13,7 +13,8 @@ import 'firebase_options.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (!kIsWeb) {
+  // Chỉ bật giả lập Ffi khi chạy trên nền tảng Web/Chrome để tránh lỗi crash trên máy ảo Android
+  if (kIsWeb) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
