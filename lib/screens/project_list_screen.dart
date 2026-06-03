@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/project_provider.dart';
+import '../providers/task_provider.dart';
 import '../models/project_model.dart';
 import 'project_task_screen.dart';
 
@@ -12,12 +13,21 @@ class ProjectListScreen extends StatefulWidget {
   State<ProjectListScreen> createState() => _ProjectListScreenState();
 }
 
-class _ProjectListScreenState extends State<ProjectListScreen> {
+class _ProjectListScreenState extends State<ProjectListScreen>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
+  String _sortBy = 'name'; // name | progress | tasks
+
+  late AnimationController _animController;
 
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..forward();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       if (auth.currentUser != null) {
@@ -30,6 +40,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _animController.dispose();
     super.dispose();
   }
 
@@ -44,12 +55,56 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
     return colors[index % colors.length];
   }
 
+  List<ProjectModel> _sortedProjects(List<ProjectModel> projects) {
+    final list = List<ProjectModel>.from(projects);
+    switch (_sortBy) {
+      case 'progress':
+        list.sort((a, b) => b.progress.compareTo(a.progress));
+        break;
+      case 'tasks':
+        list.sort((a, b) => (b.todoCount + b.doingCount + b.doneCount)
+            .compareTo(a.todoCount + a.doingCount + a.doneCount));
+        break;
+      default:
+        list.sort((a, b) => a.name.compareTo(b.name));
+    }
+    return list;
+  }
+
+  // Health score tính theo: % done, overdue, review
+  int _healthScore(ProjectModel p) {
+    final total = p.todoCount + p.doingCount + p.doneCount;
+    if (total == 0) return 100;
+    final doneRate = (p.doneCount / total) * 70;
+    final reviewPenalty = (p.doingCount / total) * 10;
+    return (doneRate + 30 - reviewPenalty).clamp(0, 100).round();
+  }
+
+  Color _healthColor(int score) {
+    if (score >= 85) return const Color(0xFF10B981);
+    if (score >= 60) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
+
+  String _healthLabel(int score) {
+    if (score >= 85) return 'Excellent';
+    if (score >= 60) return 'Good';
+    return 'Poor';
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final isManager = authProvider.currentUser?.isManager ?? false;
     final projectProvider = Provider.of<ProjectProvider>(context);
-    final projects = projectProvider.filteredProjects;
+    final taskProvider = Provider.of<TaskProvider>(context);
+
+    final projects = _sortedProjects(projectProvider.filteredProjects);
+
+    // Notification counts
+    final overdueCount = taskProvider.overdueCount;
+    final reviewCount = taskProvider.reviewingCount;
+    final notifCount = overdueCount + reviewCount;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F111A),
@@ -58,14 +113,14 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
           children: [
             CustomScrollView(
               slivers: [
-                // ── Header ──
+                // ── SliverAppBar ──
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Title + role badge
+                        // Header row
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -90,7 +145,49 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                                 ),
                               ],
                             ),
-                            _RoleBadge(isManager: isManager),
+                            Row(
+                              children: [
+                                // Notification badge
+                                if (notifCount > 0)
+                                  Stack(
+                                    children: [
+                                      Container(
+                                        margin:
+                                            const EdgeInsets.only(right: 10),
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF1E2235),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: const Icon(
+                                            Icons.notifications_rounded,
+                                            color: Colors.white,
+                                            size: 20),
+                                      ),
+                                      Positioned(
+                                        right: 8,
+                                        top: 0,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(3),
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFEF4444),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Text(
+                                            '$notifCount',
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                _RoleBadge(isManager: isManager),
+                              ],
+                            ),
                           ],
                         ),
 
@@ -121,24 +218,122 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
 
                         const SizedBox(height: 20),
 
-                        // ── Dashboard Summary ──
+                        // Deadline Alert
+                        if (!projectProvider.isLoading)
+                          _DeadlineAlert(taskProvider: taskProvider),
+
+                        const SizedBox(height: 16),
+
+                        // Dashboard Summary
                         if (!projectProvider.isLoading)
                           _DashboardSummary(provider: projectProvider),
 
                         const SizedBox(height: 20),
 
-                        // ── Search ──
+                        // Search
                         _SearchBar(
                           controller: _searchController,
                           onChanged: (q) => projectProvider.setSearchQuery(q),
                         ),
 
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 12),
 
-                        // ── Filter Chips ──
-                        _FilterChips(
-                          selected: projectProvider.filterStatus,
-                          onSelected: (s) => projectProvider.setFilterStatus(s),
+                        // Filter + Sort row
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children:
+                                      ['All', 'Active', 'Completed'].map((s) {
+                                    final isSelected =
+                                        projectProvider.filterStatus == s;
+                                    return GestureDetector(
+                                      onTap: () =>
+                                          projectProvider.setFilterStatus(s),
+                                      child: AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 200),
+                                        margin: const EdgeInsets.only(right: 8),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 16, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? const Color(0xFF8B5CF6)
+                                              : const Color(0xFF1E2235),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          boxShadow: isSelected
+                                              ? [
+                                                  BoxShadow(
+                                                    color:
+                                                        const Color(0xFF8B5CF6)
+                                                            .withOpacity(0.3),
+                                                    blurRadius: 8,
+                                                    offset: const Offset(0, 3),
+                                                  )
+                                                ]
+                                              : [],
+                                        ),
+                                        child: Text(
+                                          s,
+                                          style: TextStyle(
+                                            color: isSelected
+                                                ? Colors.white
+                                                : Colors.grey,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
+
+                            // Sort button
+                            PopupMenuButton<String>(
+                              onSelected: (val) =>
+                                  setState(() => _sortBy = val),
+                              color: const Color(0xFF1E2235),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1E2235),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.sort_rounded,
+                                        color: Colors.grey, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      _sortBy == 'name'
+                                          ? 'Tên'
+                                          : _sortBy == 'progress'
+                                              ? 'Tiến độ'
+                                              : 'Tasks',
+                                      style: const TextStyle(
+                                          color: Colors.grey, fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              itemBuilder: (_) => [
+                                _sortMenuItem('name', 'Tên A-Z',
+                                    Icons.sort_by_alpha_rounded),
+                                _sortMenuItem('progress', 'Tiến độ',
+                                    Icons.trending_up_rounded),
+                                _sortMenuItem(
+                                    'tasks', 'Số task', Icons.task_rounded),
+                              ],
+                            ),
+                          ],
                         ),
 
                         const SizedBox(height: 20),
@@ -157,21 +352,8 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                       )
                     : projects.isEmpty
                         ? SliverFillRemaining(
-                            child: Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.folder_off_rounded,
-                                      color: Colors.grey, size: 48),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    _searchController.text.isNotEmpty
-                                        ? 'Không tìm thấy dự án phù hợp'
-                                        : 'Không có dự án nào',
-                                    style: const TextStyle(color: Colors.grey),
-                                  ),
-                                ],
-                              ),
+                            child: _EmptyState(
+                              hasSearch: _searchController.text.isNotEmpty,
                             ),
                           )
                         : SliverPadding(
@@ -181,36 +363,57 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                                 (context, index) {
                                   final project = projects[index];
                                   final accent = _accentColor(index);
-                                  final score = projectProvider
-                                      .productivityScore(project);
-                                  return _ProjectCard(
-                                    project: project,
-                                    accentColor: accent,
-                                    isManager: isManager,
-                                    productivityScore: score,
-                                    productivityLabel: projectProvider
-                                        .productivityLabel(score),
-                                    productivityColor: projectProvider
-                                        .productivityColor(score),
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => ProjectTaskScreen(
-                                            projectId: project.id,
-                                            projectName: project.name,
-                                          ),
+                                  final score = _healthScore(project);
+
+                                  return FadeTransition(
+                                    opacity: CurvedAnimation(
+                                      parent: _animController,
+                                      curve: Interval(
+                                        (index * 0.1).clamp(0.0, 0.9),
+                                        1.0,
+                                        curve: Curves.easeOut,
+                                      ),
+                                    ),
+                                    child: SlideTransition(
+                                      position: Tween<Offset>(
+                                        begin: const Offset(0, 0.3),
+                                        end: Offset.zero,
+                                      ).animate(CurvedAnimation(
+                                        parent: _animController,
+                                        curve: Interval(
+                                          (index * 0.1).clamp(0.0, 0.9),
+                                          1.0,
+                                          curve: Curves.easeOut,
                                         ),
-                                      );
-                                    },
-                                    onEdit: isManager
-                                        ? () => _showEditProjectDialog(
-                                            context, project, projectProvider)
-                                        : null,
-                                    onDelete: isManager
-                                        ? () => _showDeleteConfirm(
-                                            context, project, projectProvider)
-                                        : null,
+                                      )),
+                                      child: _ProjectCard(
+                                        project: project,
+                                        accentColor: accent,
+                                        isManager: isManager,
+                                        healthScore: score,
+                                        healthColor: _healthColor(score),
+                                        healthLabel: _healthLabel(score),
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => ProjectTaskScreen(
+                                                projectId: project.id,
+                                                projectName: project.name,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        onEdit: isManager
+                                            ? () => _showEditDialog(context,
+                                                project, projectProvider)
+                                            : null,
+                                        onDelete: isManager
+                                            ? () => _showDeleteConfirm(context,
+                                                project, projectProvider)
+                                            : null,
+                                      ),
+                                    ),
                                   );
                                 },
                                 childCount: projects.length,
@@ -220,14 +423,13 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
               ],
             ),
 
-            // ── FAB (Manager only) ──
+            // ── FAB ──
             if (isManager)
               Positioned(
                 bottom: 24,
                 right: 24,
                 child: GestureDetector(
-                  onTap: () =>
-                      _showCreateProjectDialog(context, projectProvider),
+                  onTap: () => _showCreateDialog(context, projectProvider),
                   child: Container(
                     width: 56,
                     height: 56,
@@ -256,8 +458,25 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
     );
   }
 
-  void _showCreateProjectDialog(
-      BuildContext context, ProjectProvider provider) {
+  PopupMenuItem<String> _sortMenuItem(
+      String value, String label, IconData icon) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.grey, size: 16),
+          const SizedBox(width: 8),
+          Text(label,
+              style: TextStyle(
+                  color: _sortBy == value
+                      ? const Color(0xFF8B5CF6)
+                      : Colors.white)),
+        ],
+      ),
+    );
+  }
+
+  void _showCreateDialog(BuildContext context, ProjectProvider provider) {
     final nameCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     showDialog(
@@ -278,7 +497,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
     );
   }
 
-  void _showEditProjectDialog(
+  void _showEditDialog(
       BuildContext context, ProjectModel project, ProjectProvider provider) {
     final nameCtrl = TextEditingController(text: project.name);
     final descCtrl = TextEditingController(text: project.description);
@@ -312,7 +531,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
         title: const Text('Xóa dự án?',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: Text(
-          'Bạn có chắc muốn xóa "${project.name}"? Hành động này không thể hoàn tác.',
+          'Bạn có chắc muốn xóa "${project.name}"?',
           style: const TextStyle(color: Colors.grey),
         ),
         actions: [
@@ -339,31 +558,56 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
 }
 
 // ════════════════════════════════════════
-// Role Badge
+// Deadline Alert
 // ════════════════════════════════════════
-class _RoleBadge extends StatelessWidget {
-  final bool isManager;
-  const _RoleBadge({required this.isManager});
+class _DeadlineAlert extends StatelessWidget {
+  final TaskProvider taskProvider;
+  const _DeadlineAlert({required this.taskProvider});
 
   @override
   Widget build(BuildContext context) {
-    final color = isManager ? const Color(0xFF8B5CF6) : Colors.blueAccent;
+    final overdue = taskProvider.overdueCount;
+    final tasks = taskProvider.tasks;
+    final now = DateTime.now();
+    final soon = tasks
+        .where((t) =>
+            !t.isOverdue() &&
+            t.status != 'done' &&
+            t.deadline.difference(now).inDays <= 3)
+        .length;
+
+    if (overdue == 0 && soon == 0) return const SizedBox.shrink();
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.4)),
+        color: const Color(0xFF161926),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.3)),
       ),
       child: Row(
         children: [
-          Icon(isManager ? Icons.shield_rounded : Icons.person_rounded,
-              size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            isManager ? 'Manager' : 'Member',
-            style: TextStyle(
-                color: color, fontSize: 13, fontWeight: FontWeight.bold),
+          const Icon(Icons.warning_amber_rounded,
+              color: Color(0xFFEF4444), size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Wrap(
+              spacing: 16,
+              children: [
+                if (overdue > 0)
+                  Text('🔴 Quá hạn: $overdue',
+                      style: const TextStyle(
+                          color: Color(0xFFEF4444),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13)),
+                if (soon > 0)
+                  Text('🟡 Sắp đến hạn: $soon',
+                      style: const TextStyle(
+                          color: Color(0xFFF59E0B),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13)),
+              ],
+            ),
           ),
         ],
       ),
@@ -490,49 +734,34 @@ class _SearchBar extends StatelessWidget {
 }
 
 // ════════════════════════════════════════
-// Filter Chips
+// Role Badge
 // ════════════════════════════════════════
-class _FilterChips extends StatelessWidget {
-  final String selected;
-  final ValueChanged<String> onSelected;
-  const _FilterChips({required this.selected, required this.onSelected});
+class _RoleBadge extends StatelessWidget {
+  final bool isManager;
+  const _RoleBadge({required this.isManager});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: ['All', 'Active', 'Completed'].map((s) {
-        final isSelected = selected == s;
-        return GestureDetector(
-          onTap: () => onSelected(s),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? const Color(0xFF8B5CF6)
-                  : const Color(0xFF1E2235),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                          color: const Color(0xFF8B5CF6).withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3))
-                    ]
-                  : [],
-            ),
-            child: Text(
-              s,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.grey,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
-            ),
+    final color = isManager ? const Color(0xFF8B5CF6) : Colors.blueAccent;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(isManager ? Icons.shield_rounded : Icons.person_rounded,
+              size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            isManager ? 'Manager' : 'Member',
+            style: TextStyle(
+                color: color, fontSize: 13, fontWeight: FontWeight.bold),
           ),
-        );
-      }).toList(),
+        ],
+      ),
     );
   }
 }
@@ -540,13 +769,13 @@ class _FilterChips extends StatelessWidget {
 // ════════════════════════════════════════
 // Project Card
 // ════════════════════════════════════════
-class _ProjectCard extends StatelessWidget {
+class _ProjectCard extends StatefulWidget {
   final ProjectModel project;
   final Color accentColor;
   final bool isManager;
-  final int productivityScore;
-  final String productivityLabel;
-  final Color productivityColor;
+  final int healthScore;
+  final Color healthColor;
+  final String healthLabel;
   final VoidCallback onTap;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
@@ -555,193 +784,242 @@ class _ProjectCard extends StatelessWidget {
     required this.project,
     required this.accentColor,
     required this.isManager,
-    required this.productivityScore,
-    required this.productivityLabel,
-    required this.productivityColor,
+    required this.healthScore,
+    required this.healthColor,
+    required this.healthLabel,
     required this.onTap,
     this.onEdit,
     this.onDelete,
   });
 
   @override
+  State<_ProjectCard> createState() => _ProjectCardState();
+}
+
+class _ProjectCardState extends State<_ProjectCard> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF161926),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Stack(
-            children: [
-              // Gradient glow
-              Positioned(
-                top: -30,
-                right: -30,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: accentColor.withOpacity(0.10),
+    final p = widget.project;
+    final total = p.todoCount + p.doingCount + p.doneCount;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161926),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: _hovered
+                  ? widget.accentColor.withOpacity(0.4)
+                  : Colors.white.withOpacity(0.05),
+            ),
+            boxShadow: _hovered
+                ? [
+                    BoxShadow(
+                      color: widget.accentColor.withOpacity(0.15),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    )
+                  ]
+                : [],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Stack(
+              children: [
+                // Glow
+                Positioned(
+                  top: -30,
+                  right: -30,
+                  child: Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: widget.accentColor.withOpacity(0.08),
+                    ),
                   ),
                 ),
-              ),
 
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Title + actions
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            project.name,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title row
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  p.name,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                                if (p.description.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    p.description,
+                                    style: const TextStyle(
+                                        color: Colors.grey, fontSize: 13),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
-                        ),
-                        if (isManager) ...[
-                          GestureDetector(
-                            onTap: onEdit,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              margin: const EdgeInsets.only(left: 8),
+                          const SizedBox(width: 8),
+                          if (widget.isManager) ...[
+                            _IconAction(
+                              icon: Icons.edit_rounded,
+                              color: const Color(0xFF8B5CF6),
+                              onTap: widget.onEdit ?? () {},
+                            ),
+                            const SizedBox(width: 6),
+                            _IconAction(
+                              icon: Icons.delete_rounded,
+                              color: const Color(0xFFEF4444),
+                              onTap: widget.onDelete ?? () {},
+                            ),
+                          ] else
+                            Container(
+                              width: 36,
+                              height: 36,
                               decoration: BoxDecoration(
-                                color:
-                                    const Color(0xFF8B5CF6).withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(8),
+                                color: widget.accentColor.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(10),
                               ),
-                              child: const Icon(Icons.edit_rounded,
-                                  color: Color(0xFF8B5CF6), size: 15),
+                              child: Icon(Icons.folder_rounded,
+                                  color: widget.accentColor, size: 18),
+                            ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Progress bar
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: LinearProgressIndicator(
+                                    value: p.progress,
+                                    backgroundColor: const Color(0xFF1E2235),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      widget.accentColor,
+                                    ),
+                                    minHeight: 8,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          GestureDetector(
-                            onTap: onDelete,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              margin: const EdgeInsets.only(left: 6),
-                              decoration: BoxDecoration(
-                                color:
-                                    const Color(0xFFEF4444).withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(Icons.delete_rounded,
-                                  color: Color(0xFFEF4444), size: 15),
-                            ),
-                          ),
-                        ] else
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: accentColor.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(Icons.folder_rounded,
-                                color: accentColor, size: 18),
-                          ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 4),
-                    Text(project.description,
-                        style:
-                            const TextStyle(color: Colors.grey, fontSize: 13)),
-
-                    const SizedBox(height: 14),
-
-                    // Stat dots
-                    Row(
-                      children: [
-                        _StatDot(
-                            color: const Color(0xFFEF4444),
-                            label: '${project.todoCount} todo'),
-                        const SizedBox(width: 12),
-                        _StatDot(
-                            color: const Color(0xFFF59E0B),
-                            label: '${project.doingCount} doing'),
-                        const SizedBox(width: 12),
-                        _StatDot(
-                            color: const Color(0xFF10B981),
-                            label: '${project.doneCount} done'),
-                      ],
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // Member count + productivity score
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.people_outline,
-                                color: Colors.grey, size: 14),
-                            const SizedBox(width: 4),
-                            Text('${project.memberIds.length} thành viên',
-                                style: const TextStyle(
-                                    color: Colors.grey, fontSize: 12)),
-                          ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: productivityColor.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '$productivityLabel ($productivityScore%)',
+                          const SizedBox(width: 12),
+                          Text(
+                            '${(p.progress * 100).toInt()}%',
                             style: TextStyle(
-                                color: productivityColor,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // Progress bar
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: LinearProgressIndicator(
-                              value: project.progress,
-                              backgroundColor: const Color(0xFF1E2235),
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(accentColor),
-                              minHeight: 6,
+                              color: widget.accentColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          '${(project.progress * 100).toInt()}%',
-                          style: TextStyle(
-                              color: accentColor,
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Task counts
+                      Row(
+                        children: [
+                          _TaskCount(
+                              label: 'Todo',
+                              count: p.todoCount,
+                              color: const Color(0xFFEF4444)),
+                          _TaskCount(
+                              label: 'Doing',
+                              count: p.doingCount,
+                              color: const Color(0xFFF59E0B)),
+                          _TaskCount(
+                              label: 'Done',
+                              count: p.doneCount,
+                              color: const Color(0xFF10B981)),
+                          if (total > 0)
+                            _TaskCount(
+                                label: 'Total',
+                                count: total,
+                                color: Colors.grey),
+                        ],
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Footer: members + health score
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.people_outline,
+                                  color: Colors.grey, size: 14),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${p.memberIds.length} thành viên',
+                                style: const TextStyle(
+                                    color: Colors.grey, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                          // Health score
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: widget.healthColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                  color: widget.healthColor.withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.favorite_rounded,
+                                    color: widget.healthColor, size: 12),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${widget.healthScore} · ${widget.healthLabel}',
+                                  style: TextStyle(
+                                    color: widget.healthColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -749,28 +1027,96 @@ class _ProjectCard extends StatelessWidget {
   }
 }
 
-class _StatDot extends StatelessWidget {
+class _IconAction extends StatelessWidget {
+  final IconData icon;
   final Color color;
-  final String label;
-  const _StatDot({required this.color, required this.label});
+  final VoidCallback onTap;
+  const _IconAction(
+      {required this.icon, required this.color, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(7),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, color: color, size: 15),
+      ),
+    );
+  }
+}
+
+class _TaskCount extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+  const _TaskCount(
+      {required this.label, required this.count, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Row(
+        children: [
+          Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 5),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-      ],
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '$count $label',
+            style: const TextStyle(color: Colors.grey, fontSize: 11),
+          ),
+        ],
+      ),
     );
   }
 }
 
 // ════════════════════════════════════════
-// Project Dialog (Create / Edit)
+// Empty State
+// ════════════════════════════════════════
+class _EmptyState extends StatelessWidget {
+  final bool hasSearch;
+  const _EmptyState({required this.hasSearch});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            hasSearch ? Icons.search_off_rounded : Icons.folder_off_rounded,
+            color: Colors.grey.withOpacity(0.4),
+            size: 64,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            hasSearch ? 'Không tìm thấy dự án phù hợp' : 'Chưa có dự án nào',
+            style: const TextStyle(
+                color: Colors.grey, fontSize: 16, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            hasSearch
+                ? 'Thử tìm kiếm với từ khóa khác'
+                : 'Nhấn + để tạo dự án đầu tiên',
+            style: TextStyle(color: Colors.grey.withOpacity(0.6), fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════
+// Project Dialog
 // ════════════════════════════════════════
 class _ProjectDialog extends StatelessWidget {
   final String title;
@@ -845,8 +1191,9 @@ class _DarkTextField extends StatelessWidget {
         filled: true,
         fillColor: const Color(0xFF1E2235),
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0xFF8B5CF6)),

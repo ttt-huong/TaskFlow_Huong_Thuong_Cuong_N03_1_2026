@@ -78,14 +78,11 @@ class TaskProvider extends ChangeNotifier {
   Future<void> loadTasksByProject(String projectId) async {
     _isLoading = true;
     notifyListeners();
-
     _tasks = await _taskRepository.getTasksByProject(projectId);
-
     _isLoading = false;
     notifyListeners();
   }
 
-  // Sửa đổi ở đây: Cho phép gọi hàm loadAllTasks() không cần truyền userId nếu giao diện gọi trống
   Future<void> loadAllTasks([String userId = '']) {
     return loadMyTasks(userId);
   }
@@ -93,9 +90,7 @@ class TaskProvider extends ChangeNotifier {
   Future<void> loadMyTasks(String userId) async {
     _isLoading = true;
     notifyListeners();
-
     _tasks = await _taskRepository.getTasksByUser(userId);
-
     _isLoading = false;
     notifyListeners();
   }
@@ -157,7 +152,7 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Đã sửa đổi ở đây: Thêm từ khóa await cho hàm bất đồng bộ updateStatus
+  // FIX: updateStatus() trong Task model là sync (bool), không phải async
   Future<bool> updateTaskStatus(String taskId, String newStatus) async {
     final index = _tasks.indexWhere((t) => t.id == taskId);
     if (index >= 0) {
