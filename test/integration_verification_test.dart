@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:my_app/providers/auth_provider.dart';
 import 'package:my_app/providers/project_provider.dart';
 import 'package:my_app/providers/task_provider.dart';
+import 'package:my_app/providers/connectivity_provider.dart';
 import 'package:my_app/models/user_model.dart';
 import 'package:my_app/models/project_model.dart';
 import 'package:my_app/models/task_model.dart';
@@ -143,6 +144,7 @@ void main() {
         ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
         ChangeNotifierProvider<ProjectProvider>.value(value: mockProjectProvider),
         ChangeNotifierProvider<TaskProvider>.value(value: mockTaskProvider),
+        ChangeNotifierProvider<ConnectivityProvider>(create: (_) => ConnectivityProvider()),
       ],
       child: const MaterialApp(
         home: MainScreen(),
@@ -156,6 +158,7 @@ void main() {
         ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
         ChangeNotifierProvider<ProjectProvider>.value(value: mockProjectProvider),
         ChangeNotifierProvider<TaskProvider>.value(value: mockTaskProvider),
+        ChangeNotifierProvider<ConnectivityProvider>(create: (_) => ConnectivityProvider()),
       ],
       child: const MaterialApp(
         home: ProjectTaskScreen(projectId: 'p1', projectName: 'Test Project'),
@@ -168,6 +171,7 @@ void main() {
       providers: [
         ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
         ChangeNotifierProvider<TaskProvider>.value(value: mockTaskProvider),
+        ChangeNotifierProvider<ConnectivityProvider>(create: (_) => ConnectivityProvider()),
       ],
       child: MaterialApp(
         home: TaskDetailScreen(task: task),

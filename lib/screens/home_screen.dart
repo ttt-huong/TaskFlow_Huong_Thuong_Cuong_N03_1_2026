@@ -869,14 +869,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                project.name,
-                style: const TextStyle(
-                  fontSize: 16, // title size
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.text,
+              Expanded(
+                child: Text(
+                  project.name,
+                  style: const TextStyle(
+                    fontSize: 16, // title size
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               Text(
                 '${(prog * 100).toInt()}%',
                 style: const TextStyle(
@@ -898,19 +903,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               Text(
                 '${project.memberIds.length} thành viên',
                 style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
               ),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
                 children: [
                   _buildProjectStatBadge('Todo', project.todoCount, AppColors.todo),
-                  const SizedBox(width: 8),
                   _buildProjectStatBadge('Doing', project.doingCount, AppColors.doing),
-                  const SizedBox(width: 8),
                   _buildProjectStatBadge('Done', project.doneCount, AppColors.done),
                 ],
               ),
@@ -1089,17 +1097,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 8.0),
-          child: Row(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               _buildMiniTag(_getStatusLabelVi(task.status), sColor),
-              if (isOverdue) ...[
-                const SizedBox(width: 6),
-                _buildMiniTag('Quá hạn ⚠', AppColors.error),
-              ],
-              if (isManager && task.assigneeName.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                _buildAssigneeChip(task),
-              ],
+              if (isOverdue) _buildMiniTag('Quá hạn ⚠', AppColors.error),
+              if (isManager && task.assigneeName.isNotEmpty) _buildAssigneeChip(task),
             ],
           ),
         ),
@@ -1170,15 +1175,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
         ),
         const SizedBox(width: 4),
-        Text(
-          task.assigneeName,
-          style: const TextStyle(
-            color: AppColors.secondaryText,
-            fontSize: 12, // caption size
-            fontWeight: FontWeight.w500,
+        Flexible(
+          child: Text(
+            task.assigneeName,
+            style: const TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 12, // caption size
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
       ],
     );

@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -19,8 +20,11 @@ class AuthService {
           email: email,
           password: password,
         );
-        
-        final doc = await _firestore.collection('users').doc(userCredential.user!.uid).get();
+
+        final doc = await _firestore
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .get();
         if (doc.exists) {
           final user = UserModel.fromMap(doc.data()!, doc.id);
           await _sqliteService.cacheUser(user);
@@ -28,37 +32,29 @@ class AuthService {
         }
         return null;
       } catch (e) {
-        print('Firebase login failed: $e. Falling back to local DB.');
-        // Try fallback to local database if firebase login fails or is slow
+        // Firebase thất bại (mất mạng, timeout…) → fallback sang SQLite
         return _loginLocally(email, password);
       }
     } else {
+      // Firebase chưa khởi tạo → dùng SQLite
       return _loginLocally(email, password);
     }
   }
 
+  /// Xác thực offline bằng dữ liệu đã cache trong SQLite.
+  /// Chỉ thành công nếu user đã từng đăng nhập online trước đó.
+  /// KHÔNG có tài khoản mặc định / hardcode — toàn bộ đã bị xóa vì lý do bảo mật.
   Future<UserModel?> _loginLocally(String email, String password) async {
     final localUsers = await _sqliteService.getLocalUsers();
-    try {
-      return localUsers.firstWhere(
-        (u) => u.email == email && u.password == password,
-      );
-    } catch (_) {
-      // Seed default accounts for testing if database is empty
-      if (email == 'manager@gmail.com' && password == '123456') {
-        final u = UserModel(id: 'manager_1', name: 'Manager Account', email: email, role: 'manager', password: password);
-        await _sqliteService.cacheUser(u);
-        return u;
-      } else if (email == 'member@gmail.com' && password == '123456') {
-        final u = UserModel(id: 'member_1', name: 'Member Account', email: email, role: 'member', password: password);
-        await _sqliteService.cacheUser(u);
-        return u;
-      }
-      return null;
-    }
+
+    // Dùng firstWhereOrNull để trả về null thay vì ném StateError
+    return localUsers.firstWhereOrNull(
+      (u) => u.email == email && u.password == password,
+    );
   }
 
-  Future<UserModel> register(String email, String password, String name, String role) async {
+  Future<UserModel> register(
+      String email, String password, String name, String role) async {
     final uid = const Uuid().v4();
     final newUser = UserModel(
       id: uid,
@@ -81,15 +77,19 @@ class AuthService {
           password: password,
           role: role,
         );
-        await _firestore.collection('users').doc(firebaseUser.id).set(firebaseUser.toMap());
+        await _firestore
+            .collection('users')
+            .doc(firebaseUser.id)
+            .set(firebaseUser.toMap());
         await _sqliteService.cacheUser(firebaseUser);
         return firebaseUser;
       } catch (e) {
-        print('Firebase register failed: $e. Saving locally to SQLite.');
+        // Đăng ký online thất bại → lưu offline, chờ sync
         await _sqliteService.cacheUser(newUser);
         return newUser;
       }
     } else {
+      // Firebase chưa sẵn sàng → lưu offline
       await _sqliteService.cacheUser(newUser);
       return newUser;
     }
