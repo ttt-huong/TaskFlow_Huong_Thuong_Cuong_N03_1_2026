@@ -29,9 +29,12 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => TaskProvider()),
-        ChangeNotifierProvider(create: (_) => ProjectProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProxyProvider<NotificationProvider, TaskProvider>(
+          create: (_) => TaskProvider(),
+          update: (_, notiProvider, taskProvider) => taskProvider!..updateNotificationProvider(notiProvider),
+        ),
+        ChangeNotifierProvider(create: (_) => ProjectProvider()),
         // ConnectivityProvider phải được tạo sau TaskProvider & ProjectProvider
         // vì nó cần gọi syncPending() khi có mạng trở lại
         ChangeNotifierProxyProvider2<TaskProvider, ProjectProvider,

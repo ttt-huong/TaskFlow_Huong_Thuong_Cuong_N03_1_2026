@@ -331,7 +331,7 @@ class _MainScreenState extends State<MainScreen> {
       body: Stack(
         children: [
           // ── Page content ──
-          pages[_currentIndex],
+          pages[_currentIndex < pages.length ? _currentIndex : 0],
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,

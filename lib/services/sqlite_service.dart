@@ -43,6 +43,8 @@ class SQLiteService {
         await db.execute(
           'CREATE TABLE notifications_local('
           'id TEXT PRIMARY KEY, '
+          'userId TEXT, '
+          'relatedTaskId TEXT, '
           'title TEXT, '
           'message TEXT, '
           'createdAt TEXT, '
@@ -77,6 +79,7 @@ class SQLiteService {
             await db.execute(
               'CREATE TABLE notifications_local('
               'id TEXT PRIMARY KEY, '
+              'userId TEXT, '
               'title TEXT, '
               'message TEXT, '
               'createdAt TEXT, '
@@ -86,8 +89,18 @@ class SQLiteService {
             );
           } catch (_) {}
         }
+        if (oldVersion < 6) {
+          try {
+            await db.execute('ALTER TABLE notifications_local ADD COLUMN userId TEXT');
+          } catch (_) {}
+        }
+        if (oldVersion < 7) {
+          try {
+            await db.execute('ALTER TABLE notifications_local ADD COLUMN relatedTaskId TEXT');
+          } catch (_) {}
+        }
       },
-      version: 5,
+      version: 7,
     );
     return _db!;
   }
@@ -278,9 +291,14 @@ class SQLiteService {
     );
   }
 
-  Future<List<NotificationModel>> getLocalNotifications() async {
+  Future<List<NotificationModel>> getLocalNotifications(String userId) async {
     final database = await db;
-    final maps = await database.query('notifications_local', orderBy: 'createdAt DESC');
+    final maps = await database.query(
+      'notifications_local',
+      where: 'userId = ? OR userId IS NULL',
+      whereArgs: [userId],
+      orderBy: 'createdAt DESC',
+    );
     return maps.map((m) => NotificationModel.fromMap(m)).toList();
   }
 
@@ -299,6 +317,15 @@ class SQLiteService {
     await database.update(
       'notifications_local',
       {'isRead': 1},
+    );
+  }
+
+  Future<void> deleteNotificationsByTaskId(String taskId) async {
+    final database = await db;
+    await database.delete(
+      'notifications_local',
+      where: 'relatedTaskId = ?',
+      whereArgs: [taskId],
     );
   }
 }

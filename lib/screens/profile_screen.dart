@@ -4,6 +4,7 @@ import '../widgets/common/main_layout.dart';
 import '../providers/auth_provider.dart';
 import '../providers/project_provider.dart';
 import '../providers/task_provider.dart';
+import '../providers/notification_provider.dart';
 import '../services/firebase_seed_data.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -261,11 +262,11 @@ class ProfileScreen extends StatelessWidget {
                     side: const BorderSide(color: Colors.red),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: () async {
-                    await authProvider.logout();
-                    if (context.mounted) {
-                      Navigator.pushReplacementNamed(context, '/login');
-                    }
+                  onPressed: () {
+                    // Chuyển màn hình trước khi logout để tránh chớp đỏ (UI rebuild với user = null)
+                    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                    Provider.of<NotificationProvider>(context, listen: false).clearNotifications();
+                    authProvider.logout();
                   },
                   child: const Text(
                     'Đăng xuất',

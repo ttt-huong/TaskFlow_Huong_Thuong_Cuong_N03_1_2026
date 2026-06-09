@@ -11,6 +11,7 @@ import '../models/project_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/task_provider.dart';
 import '../providers/project_provider.dart';
+import '../providers/notification_provider.dart';
 import '../core/app_colors.dart';
 
 // =============================================================================
@@ -65,9 +66,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       if (user != null) {
         final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
         final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+        final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
         
         projectProvider.loadProjects(user);
         projectProvider.loadAllUsers();
+        notificationProvider.loadNotifications(user.id);
+        
         if (user.isManager) {
           taskProvider.loadAllTasks();
         } else {

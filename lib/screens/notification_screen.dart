@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../core/app_colors.dart';
 import '../providers/notification_provider.dart';
+import '../providers/task_provider.dart';
 import '../models/notification_model.dart';
 import '../widgets/common/main_layout.dart';
+import 'task_detail_screen.dart';
 
 class NotificationScreen extends StatelessWidget {
   const NotificationScreen({super.key});
@@ -134,6 +136,22 @@ class NotificationScreen extends StatelessWidget {
           onTap: () {
             if (!item.isRead) {
               provider.markAsRead(item.id);
+            }
+            if (item.relatedTaskId != null) {
+              final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+              try {
+                final task = taskProvider.tasks.firstWhere((t) => t.id == item.relatedTaskId);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TaskDetailScreen(task: task),
+                  ),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Nhiệm vụ này không còn tồn tại hoặc chưa được tải.')),
+                );
+              }
             }
           },
           borderRadius: BorderRadius.circular(16),

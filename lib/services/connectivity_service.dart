@@ -53,13 +53,18 @@ class ConnectivityService {
   /// Kiểm tra internet thực sự bằng DNS lookup.
   /// Trả [false] nếu Firebase chưa init hoặc không phân giải được domain.
   Future<bool> _checkRealInternet() async {
-    if (Firebase.apps.isEmpty) return false;
     try {
-      final result = await InternetAddress.lookup('firebase.google.com')
+      final result = await InternetAddress.lookup('google.com')
           .timeout(const Duration(seconds: 5));
       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
     } catch (_) {
-      return false;
+      try {
+        final result2 = await InternetAddress.lookup('cloudflare.com')
+            .timeout(const Duration(seconds: 5));
+        return result2.isNotEmpty && result2[0].rawAddress.isNotEmpty;
+      } catch (_) {
+        return false;
+      }
     }
   }
 
