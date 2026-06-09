@@ -270,5 +270,201 @@ Nguyễn Việt Cường
 
 ---
 
-### Thành viên 3:
-Nguyễn Thị Thương
+### Thành viên 3: Nguyễn Thị Thương
+
+#### Phần công việc phụ trách
+- `lib/screens/profile/profile_screen.dart`
+- `lib/screens/edit_profile_screen.dart`
+- `lib/screens/profile/statistics_profile_screen.dart`
+- `lib/screens/profile/manager_notification_screen.dart`
+- `lib/screens/profile/member_management_screen.dart`
+- `lib/screens/profile/member_notification_screen.dart`
+- `lib/screens/profile/member_task_screen.dart`
+- Tích hợp màn hình Profile vào `lib/screens/main_screen.dart`
+- Chuẩn hóa kiểm tra quyền Manager / Member qua `UserModel.isManager`
+
+#### Mô tả công việc
+Xây dựng cụm giao diện Profile cho ứng dụng TaskFlow, hiển thị thông tin cá nhân của người dùng, thống kê nhanh, các tùy chọn thao tác và điều hướng sang các màn hình phụ theo từng vai trò.
+
+Các chức năng chính đã thực hiện:
+- Thiết kế giao diện trang Profile với avatar, tên, email và badge vai trò.
+- Hiển thị các chỉ số tổng quan: số dự án, số task và số task hoàn thành.
+- Xây dựng màn hình chỉnh sửa thông tin cá nhân.
+- Xây dựng màn hình thống kê dành cho Manager.
+- Xây dựng màn hình thông báo riêng cho Manager và Member.
+- Xây dựng màn hình quản lý thành viên dành cho Manager.
+- Xây dựng màn hình Task của tôi dành cho Member.
+- Phân quyền hiển thị tùy chọn theo vai trò Manager / Member.
+
+#### Phân tích Tổng quát hóa
+
+##### `StatefulWidget` / `StatelessWidget`
+- Quan hệ: `extends`
+- Lớp cha hoặc lớp tổng quát: `StatefulWidget`, `StatelessWidget`
+- Lớp con hoặc lớp triển khai: `ProfileScreen`, `EditProfileScreen`, `StatisticsProfileScreen`, `ManagerNotificationScreen`, `MemberManagementScreen`, `MemberNotificationScreen`, `MemberTaskScreen`
+- Ý nghĩa tổng quát hóa: Tái sử dụng cơ chế xây dựng giao diện của Flutter, tách phần giao diện thành từng màn hình độc lập để dễ bảo trì và mở rộng.
+- File liên quan: `lib/screens/profile/profile_screen.dart`, `lib/screens/edit_profile_screen.dart`, `lib/screens/profile/*.dart`
+
+Code minh họa:
+```dart
+class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+```
+
+##### Tái sử dụng layout chung `MainLayout`
+- Quan hệ: composition
+- Thành phần tổng quát: `MainLayout`
+- Thành phần sử dụng: các màn hình Profile, Edit Profile, Statistics, Notification, Member Task
+- Ý nghĩa tổng quát hóa: Dùng chung khung tiêu đề, body và cấu trúc hiển thị để giao diện đồng nhất trong toàn ứng dụng.
+- File liên quan: `lib/widgets/common/main_layout.dart`
+
+Code minh họa:
+```dart
+return MainLayout(
+  title: 'HỒ SƠ',
+  showImage: false,
+  body: SingleChildScrollView(
+    child: Column(
+      children: [
+        // Nội dung màn hình Profile
+      ],
+    ),
+  ),
+);
+```
+
+##### Provider và Model người dùng
+- Quan hệ: sử dụng đối tượng `AuthProvider` và `UserModel`
+- Thành phần tổng quát: `AuthProvider.currentUser`, `UserModel`
+- Ý nghĩa tổng quát hóa: Thông tin người dùng được lấy từ provider dùng chung thay vì khai báo riêng trong từng màn hình.
+- File liên quan: `lib/providers/auth_provider.dart`, `lib/models/user_model.dart`
+
+Code minh họa:
+```dart
+final authProvider = context.watch<AuthProvider>();
+final currentUser = authProvider.currentUser;
+final name = currentUser?.name ?? 'Tran Thi B';
+final email = currentUser?.email ?? 'b@gmail.com';
+```
+
+#### Phân tích Chuyên biệt hóa
+
+##### Phân quyền Manager / Member trong Profile
+- Vì sao chuyên biệt hóa: Manager và Member có các chức năng khác nhau trong màn hình Profile.
+- Logic đặc thù: Manager xem thống kê, thông báo quản lý và quản lý thành viên; Member xem thông báo cá nhân và task của tôi.
+- File liên quan: `lib/screens/profile/profile_screen.dart`
+
+Code minh họa:
+```dart
+if (isManager) ...[
+  _buildOptionRow(Icons.bar_chart, 'Thống kê', () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StatisticsProfileScreen(isManager: isManager),
+      ),
+    );
+  }),
+  _buildOptionRow(Icons.group, 'Quản lý thành viên', () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const MemberManagementScreen(),
+      ),
+    );
+  }),
+] else ...[
+  _buildOptionRow(Icons.notifications, 'Thông báo cá nhân', () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const MemberNotificationScreen(),
+      ),
+    );
+  }),
+]
+```
+
+##### Chuẩn hóa vai trò người dùng
+- Vì sao chuyên biệt hóa: Vai trò người dùng là nghiệp vụ riêng của TaskFlow, quyết định quyền truy cập giao diện.
+- Logic đặc thù: Chuẩn hóa `role` về chữ thường và kiểm tra quyền thông qua getter `isManager`.
+- File liên quan: `lib/models/user_model.dart`, `lib/providers/auth_provider.dart`
+
+Code minh họa:
+```dart
+UserModel({
+  required this.id,
+  required this.name,
+  required this.email,
+  required this.password,
+  required String role,
+  this.avatarChar = '',
+}) : role = role.trim().toLowerCase();
+
+bool get isManager => role.trim().toLowerCase() == 'manager';
+```
+
+##### Màn hình thống kê dành cho Manager
+- Vì sao chuyên biệt hóa: Thống kê dự án và hiệu suất thành viên chỉ phù hợp với vai trò Manager.
+- Logic đặc thù: Nếu là Manager thì hiển thị dashboard; nếu không có quyền thì hiển thị thông báo giới hạn truy cập.
+- File liên quan: `lib/screens/profile/statistics_profile_screen.dart`
+
+Code minh họa:
+```dart
+@override
+Widget build(BuildContext context) {
+  return MainLayout(
+    title: 'THỐNG KÊ',
+    showImage: false,
+    body: SingleChildScrollView(
+      child: isManager ? _managerView() : _memberView(),
+    ),
+  );
+}
+```
+
+##### Điều hướng Profile trong `MainScreen`
+- Vì sao chuyên biệt hóa: Profile là tab dùng chung, nhưng nội dung bên trong thay đổi theo vai trò.
+- Logic đặc thù: `MainScreen` dùng `ProfileScreen` mới trong thư mục `profile/` và xác định trang theo `currentUser.isManager`.
+- File liên quan: `lib/screens/main_screen.dart`
+
+Code minh họa:
+```dart
+final bool isManager = authProvider.currentUser?.isManager ?? false;
+final pages = isManager ? _managerPages : _memberPages;
+final navItems = _getNavItems(isManager);
+```
+
+#### Trích lược code chính
+1. `ProfileScreen` hiển thị thông tin người dùng, thống kê nhanh và danh sách tùy chọn.
+2. `EditProfileScreen` xây dựng form chỉnh sửa thông tin cá nhân.
+3. `StatisticsProfileScreen` tách giao diện thống kê Manager và màn hình không có quyền.
+4. `ManagerNotificationScreen` hiển thị thông báo dành cho Manager.
+5. `MemberNotificationScreen` hiển thị thông báo dành cho Member.
+6. `MemberTaskScreen` hiển thị danh sách task và tiến độ của Member.
+7. `MemberManagementScreen` hiển thị danh sách thành viên cho Manager.
+8. `UserModel.isManager` chuẩn hóa logic kiểm tra quyền người dùng.
+
+#### Ảnh màn hình cần chụp
+- `lib/screens/profile/profile_screen.dart`: màn hình Profile của Manager.
+- `lib/screens/profile/profile_screen.dart`: màn hình Profile của Member.
+- `lib/screens/edit_profile_screen.dart`: màn hình chỉnh sửa thông tin.
+- `lib/screens/profile/statistics_profile_screen.dart`: màn hình thống kê Manager.
+- `lib/screens/profile/manager_notification_screen.dart`: màn hình thông báo Manager.
+- `lib/screens/profile/member_task_screen.dart`: màn hình Task của tôi.
+
+#### Ảnh minh họa bài nộp
+- Ảnh 1: ProfileScreen - Manager view
+  - ![Profile Manager](assets/profile-manager.png)
+- Ảnh 2: ProfileScreen - Member view
+  - ![Profile Member](assets/profile-member.png)
+- Ảnh 3: EditProfileScreen
+  - ![Edit Profile](assets/edit-profile.png)
+- Ảnh 4: StatisticsProfileScreen
+  - ![Profile Statistics](assets/profile-statistics.png)
+- Ảnh 5: MemberTaskScreen
+  - ![Member Task](assets/member-task.png)
