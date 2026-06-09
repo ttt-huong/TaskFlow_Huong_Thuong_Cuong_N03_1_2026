@@ -1,9 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-
 import 'app.dart';
 import 'providers/auth_provider.dart';
 import 'providers/project_provider.dart';
@@ -13,7 +10,7 @@ import 'providers/connectivity_provider.dart';
 import 'services/connectivity_service.dart';
 import 'firebase_options.dart';
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Firebase (try-catch to run offline if configuration is missing)
