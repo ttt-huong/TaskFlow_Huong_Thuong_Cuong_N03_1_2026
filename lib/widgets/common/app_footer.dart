@@ -95,7 +95,7 @@ class AppFooter extends StatelessWidget {
                 child: _buildFooterColumn('NHÓM SV', [
                   'Trần Thị Thu Hường',
                   'Nguyễn Thị Thương',
-                  'Lê Văn Cường',
+                  'Nguyễn Việt Cường',
                 ]),
               ),
               // Cột 3: Explore

@@ -5,6 +5,7 @@ import 'package:my_app/app.dart';
 import 'package:my_app/providers/auth_provider.dart';
 import 'package:my_app/providers/project_provider.dart';
 import 'package:my_app/providers/task_provider.dart';
+import 'package:my_app/providers/connectivity_provider.dart';
 
 void main() {
   testWidgets('App starts and displays login screen', (WidgetTester tester) async {
@@ -15,6 +16,7 @@ void main() {
           ChangeNotifierProvider(create: (_) => AuthProvider()),
           ChangeNotifierProvider(create: (_) => ProjectProvider()),
           ChangeNotifierProvider(create: (_) => TaskProvider()),
+          ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
         ],
         child: const MyApp(),
       ),

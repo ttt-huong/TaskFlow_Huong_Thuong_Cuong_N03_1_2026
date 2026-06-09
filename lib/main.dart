@@ -5,12 +5,14 @@ import 'app.dart';
 import 'providers/auth_provider.dart';
 import 'providers/project_provider.dart';
 import 'providers/task_provider.dart';
-
+import 'providers/notification_provider.dart';
+import 'providers/connectivity_provider.dart';
+import 'services/connectivity_service.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Firebase (try-catch to run offline if configuration is missing)
   try {
     await Firebase.initializeApp(
@@ -19,13 +21,35 @@ void main() async {
   } catch (e) {
     debugPrint('Firebase initialization failed: $e. Running in offline mode.');
   }
-  
+
+  // Khởi tạo ConnectivityService trước khi runApp để isOnline có giá trị ngay
+  await ConnectivityService.instance.init();
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProxyProvider<NotificationProvider, TaskProvider>(
+          create: (_) => TaskProvider(),
+          update: (_, notiProvider, taskProvider) => taskProvider!..updateNotificationProvider(notiProvider),
+        ),
         ChangeNotifierProvider(create: (_) => ProjectProvider()),
-        ChangeNotifierProvider(create: (_) => TaskProvider()),
+        // ConnectivityProvider phải được tạo sau TaskProvider & ProjectProvider
+        // vì nó cần gọi syncPending() khi có mạng trở lại
+        ChangeNotifierProxyProvider2<TaskProvider, ProjectProvider,
+            ConnectivityProvider>(
+          create: (_) => ConnectivityProvider(),
+          update: (_, taskProvider, projectProvider, previous) {
+            previous?.updateSyncCallback(
+              onBackOnline: () async {
+                await taskProvider.syncPending();
+                await projectProvider.syncPending();
+              },
+            );
+            return previous ?? ConnectivityProvider();
+          },
+        ),
       ],
       child: const MyApp(),
     ),

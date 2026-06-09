@@ -33,10 +33,33 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       _currentUser = await _authRepository.login(email, password);
-      
+
+      if (_currentUser == null) {
+        // Xác định có đang offline không để thông báo chính xác
+        bool offline = true;
+        try {
+          if (Firebase.apps.isNotEmpty &&
+              FirebaseAuth.instance.currentUser != null) {
+            offline = false;
+          }
+        } catch (_) {
+          offline = true;
+        }
+
+        _errorMessage = offline
+            ? 'Ứng dụng đang ngoại tuyến. Vui lòng kết nối mạng để đăng nhập lần đầu.'
+            : 'Email hoặc mật khẩu không đúng. Vui lòng thử lại.';
+        _isOfflineMode = offline;
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      // Đăng nhập thành công — xác định chế độ
       bool offline = true;
       try {
-        if (Firebase.apps.isNotEmpty && FirebaseAuth.instance.currentUser != null) {
+        if (Firebase.apps.isNotEmpty &&
+            FirebaseAuth.instance.currentUser != null) {
           offline = false;
         }
       } catch (_) {
@@ -46,9 +69,22 @@ class AuthProvider extends ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-      return _currentUser != null;
+      return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('network') ||
+          msg.contains('socket') ||
+          msg.contains('connection')) {
+        _errorMessage =
+            'Ứng dụng đang ngoại tuyến. Vui lòng thử lại nếu bạn đã từng đăng nhập trước đó.';
+      } else if (msg.contains('wrong-password') ||
+          msg.contains('invalid-credential')) {
+        _errorMessage = 'Email hoặc mật khẩu không đúng.';
+      } else if (msg.contains('user-not-found')) {
+        _errorMessage = 'Tài khoản không tồn tại.';
+      } else {
+        _errorMessage = 'Đăng nhập thất bại. Vui lòng thử lại.';
+      }
       _isLoading = false;
       _isOfflineMode = true;
       notifyListeners();

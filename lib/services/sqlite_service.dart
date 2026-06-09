@@ -3,6 +3,7 @@ import 'package:path/path.dart';
 import '../models/task_model.dart';
 import '../models/project_model.dart';
 import '../models/user_model.dart';
+import '../models/notification_model.dart';
 
 class SQLiteService {
   static Database? _db;
@@ -34,10 +35,22 @@ class SQLiteService {
           ')',
         );
         await db.execute(
-          'CREATE TABLE projects_local(id TEXT PRIMARY KEY, name TEXT, description TEXT, memberIds TEXT, syncedAt TEXT)',
+          'CREATE TABLE projects_local(id TEXT PRIMARY KEY, name TEXT, description TEXT, memberIds TEXT, syncedAt TEXT, isSynced INTEGER DEFAULT 1)',
         );
         await db.execute(
           'CREATE TABLE users_local(id TEXT PRIMARY KEY, name TEXT, email TEXT, role TEXT, password TEXT, avatarChar TEXT)',
+        );
+        await db.execute(
+          'CREATE TABLE notifications_local('
+          'id TEXT PRIMARY KEY, '
+          'userId TEXT, '
+          'relatedTaskId TEXT, '
+          'title TEXT, '
+          'message TEXT, '
+          'createdAt TEXT, '
+          'isRead INTEGER DEFAULT 0, '
+          'type TEXT'
+          ')',
         );
       },
       onUpgrade: (db, oldVersion, newVersion) async {
@@ -55,8 +68,39 @@ class SQLiteService {
             await db.execute('ALTER TABLE tasks_local ADD COLUMN isSynced INTEGER DEFAULT 1');
           } catch (_) {}
         }
+        if (oldVersion < 4) {
+          try {
+            // Thêm cột isSynced cho projects_local để queue offline projects
+            await db.execute('ALTER TABLE projects_local ADD COLUMN isSynced INTEGER DEFAULT 1');
+          } catch (_) {}
+        }
+        if (oldVersion < 5) {
+          try {
+            await db.execute(
+              'CREATE TABLE notifications_local('
+              'id TEXT PRIMARY KEY, '
+              'userId TEXT, '
+              'title TEXT, '
+              'message TEXT, '
+              'createdAt TEXT, '
+              'isRead INTEGER DEFAULT 0, '
+              'type TEXT'
+              ')',
+            );
+          } catch (_) {}
+        }
+        if (oldVersion < 6) {
+          try {
+            await db.execute('ALTER TABLE notifications_local ADD COLUMN userId TEXT');
+          } catch (_) {}
+        }
+        if (oldVersion < 7) {
+          try {
+            await db.execute('ALTER TABLE notifications_local ADD COLUMN relatedTaskId TEXT');
+          } catch (_) {}
+        }
       },
-      version: 3,
+      version: 7,
     );
     return _db!;
   }
@@ -149,7 +193,7 @@ class SQLiteService {
   }
 
   // --- Projects ---
-  Future<void> cacheProject(ProjectModel project) async {
+  Future<void> cacheProject(ProjectModel project, {bool isSynced = true}) async {
     final database = await db;
     await database.insert(
       'projects_local',
@@ -158,7 +202,8 @@ class SQLiteService {
         'name': project.name,
         'description': project.description,
         'memberIds': project.memberIds.join(','),
-        'syncedAt': DateTime.now().toIso8601String()
+        'syncedAt': DateTime.now().toIso8601String(),
+        'isSynced': isSynced ? 1 : 0,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -181,10 +226,38 @@ class SQLiteService {
       where: 'id = ?',
       whereArgs: [projectId],
     );
-    // Also delete tasks associated with this project
     await database.delete(
       'tasks_local',
       where: 'projectId = ?',
+      whereArgs: [projectId],
+    );
+  }
+
+  Future<List<ProjectModel>> getUnsyncedProjects() async {
+    final database = await db;
+    final maps = await database.query(
+      'projects_local',
+      where: 'isSynced = 0',
+    );
+    return maps.map((m) {
+      final data = Map<String, dynamic>.from(m);
+      data['memberIds'] = (data['memberIds'] as String)
+          .split(',')
+          .where((e) => e.isNotEmpty)
+          .toList();
+      return ProjectModel.fromMap(data, m['id'] as String);
+    }).toList();
+  }
+
+  Future<void> markProjectSynced(String projectId) async {
+    final database = await db;
+    await database.update(
+      'projects_local',
+      {
+        'isSynced': 1,
+        'syncedAt': DateTime.now().toIso8601String(),
+      },
+      where: 'id = ?',
       whereArgs: [projectId],
     );
   }
@@ -206,5 +279,53 @@ class SQLiteService {
     final database = await db;
     final maps = await database.query('users_local');
     return maps.map((m) => UserModel.fromMap(m, m['id'] as String)).toList();
+  }
+
+  // --- Notifications ---
+  Future<void> cacheNotification(NotificationModel notification) async {
+    final database = await db;
+    await database.insert(
+      'notifications_local',
+      notification.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<NotificationModel>> getLocalNotifications(String userId) async {
+    final database = await db;
+    final maps = await database.query(
+      'notifications_local',
+      where: 'userId = ? OR userId IS NULL',
+      whereArgs: [userId],
+      orderBy: 'createdAt DESC',
+    );
+    return maps.map((m) => NotificationModel.fromMap(m)).toList();
+  }
+
+  Future<void> markNotificationRead(String id) async {
+    final database = await db;
+    await database.update(
+      'notifications_local',
+      {'isRead': 1},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    final database = await db;
+    await database.update(
+      'notifications_local',
+      {'isRead': 1},
+    );
+  }
+
+  Future<void> deleteNotificationsByTaskId(String taskId) async {
+    final database = await db;
+    await database.delete(
+      'notifications_local',
+      where: 'relatedTaskId = ?',
+      whereArgs: [taskId],
+    );
   }
 }

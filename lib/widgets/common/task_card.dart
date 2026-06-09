@@ -108,17 +108,14 @@ class TaskCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           _buildMiniTag(_getStatusLabelVi(task.status), color),
-                          if (isOverdue) ...[
-                            const SizedBox(width: 6),
-                            _buildMiniTag('Quá hạn ⚠', AppColors.error),
-                          ],
-                          if (task.assigneeName.isNotEmpty) ...[
-                            const SizedBox(width: 8),
-                            _buildAssigneeChip(task),
-                          ],
+                          if (isOverdue) _buildMiniTag('Quá hạn ⚠', AppColors.error),
+                          if (task.assigneeName.isNotEmpty) _buildAssigneeChip(task),
                         ],
                       ),
                     ],
@@ -200,12 +197,16 @@ class TaskCard extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 4),
-        Text(
-          task.assigneeName,
-          style: const TextStyle(
-            color: AppColors.secondaryText,
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
+        Flexible(
+          child: Text(
+            task.assigneeName,
+            style: const TextStyle(
+              color: AppColors.secondaryText,
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],

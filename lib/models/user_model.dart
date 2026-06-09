@@ -28,7 +28,7 @@ class UserModel {
       id: id,
       name: userName,
       email: data['email'] ?? '',
-      password: data['password'] ?? '123456', // Default cho dữ liệu cũ
+      password: data['password'] ?? '', // Default rỗng — không dùng '123456' vì lý do bảo mật
       role: data['role'] ?? 'member',
       // Tự động lấy chữ cái đầu tiên của Tên để làm Avatar nếu DB chưa lưu trường này
       avatarChar:

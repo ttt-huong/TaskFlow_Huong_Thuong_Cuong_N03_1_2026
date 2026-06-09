@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_colors.dart';
 import '../providers/auth_provider.dart';
+import '../providers/connectivity_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -58,14 +59,18 @@ class _RegisterScreenState extends State<RegisterScreen>
     }
 
     final authProvider = context.read<AuthProvider>();
+    final isOnline = context.read<ConnectivityProvider>().isOnline;
     final success =
         await authProvider.register(name, email, password, _selectedRole);
 
     if (mounted) {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Đăng ký thành công! Vui lòng đăng nhập')),
+          SnackBar(
+            content: Text(isOnline
+                ? 'Đăng ký thành công! Vui lòng đăng nhập'
+                : 'Tài khoản đã được lưu tạm. Sẽ đồng bộ lên server khi có mạng.'),
+          ),
         );
         Navigator.pop(context);
       } else {

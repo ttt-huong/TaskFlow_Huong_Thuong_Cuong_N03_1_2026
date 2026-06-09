@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
 import '../models/task_model.dart';
 import '../repositories/impl/task_repository_impl.dart';
+import '../providers/notification_provider.dart';
+import '../models/notification_model.dart';
+
+import 'package:uuid/uuid.dart';
 
 /// Provider quản lý trạng thái danh sách Task cho toàn app.
 /// Hỗ trợ phân trang (Pagination) và tải dữ liệu theo project hoặc user.
 class TaskProvider extends ChangeNotifier {
   final TaskRepositoryImpl _taskRepository = TaskRepositoryImpl();
+
+  NotificationProvider? _notificationProvider;
+  void updateNotificationProvider(NotificationProvider provider) {
+    _notificationProvider = provider;
+  }
 
   List<Task> _tasks = [];
   List<Task> get tasks => _tasks;
@@ -50,7 +59,7 @@ class TaskProvider extends ChangeNotifier {
   Future<void> createTask(String title, String description, String projectId,
       String assignedTo, DateTime deadline, {String assigneeName = '', String assigneeAvatar = ''}) async {
     final newTask = Task(
-      id: '',
+      id: const Uuid().v4(),
       title: title,
       description: description,
       projectId: projectId,
@@ -63,6 +72,21 @@ class TaskProvider extends ChangeNotifier {
     await _taskRepository.addTask(newTask);
     _tasks.add(newTask);
     notifyListeners();
+
+    // Trigger Notification for Member
+    if (_notificationProvider != null) {
+      _notificationProvider!.addNotification(
+        NotificationModel(
+          id: const Uuid().v4(),
+          userId: assignedTo,
+          relatedTaskId: newTask.id,
+          title: 'Giao việc mới',
+          message: 'Bạn vừa được giao nhiệm vụ: "$title".',
+          createdAt: DateTime.now(),
+          type: 'task_assigned',
+        ),
+      );
+    }
   }
 
   /// Tải toàn bộ tasks (dùng cho Manager)
@@ -81,6 +105,12 @@ class TaskProvider extends ChangeNotifier {
   Future<void> deleteTask(String taskId) async {
     await _taskRepository.deleteTask(taskId);
     _tasks.removeWhere((t) => t.id == taskId);
+    
+    // Xóa các thông báo mồ côi liên quan đến Task này
+    if (_notificationProvider != null) {
+      await _notificationProvider!.deleteNotificationsByTaskId(taskId);
+    }
+    
     notifyListeners();
   }
 
@@ -102,6 +132,39 @@ class TaskProvider extends ChangeNotifier {
       if (await task.updateStatus(newStatus)) {
         await _taskRepository.updateTask(task);
         notifyListeners();
+
+        // Trigger Notification
+        if (_notificationProvider != null) {
+          String title = '';
+          String message = '';
+          String? notifyUserId; // null means broadcast to all (managers)
+
+          if (newStatus == 'reviewing') {
+            title = 'Yêu cầu phê duyệt';
+            message = 'Nhiệm vụ "${task.title}" đã được nộp. Vui lòng kiểm tra.';
+            notifyUserId = null; // Broadcast to managers
+          } else if (newStatus == 'done') {
+            title = 'Nhiệm vụ hoàn thành';
+            message = 'Tuyệt vời! Nhiệm vụ "${task.title}" của bạn đã được phê duyệt.';
+            notifyUserId = task.assignedTo;
+          } else if (newStatus == 'doing' && task.status == 'reviewing') {
+            title = 'Nhiệm vụ bị từ chối';
+            message = 'Nhiệm vụ "${task.title}" cần sửa lại. Vui lòng xem nhận xét.';
+            notifyUserId = task.assignedTo;
+          }
+
+          if (title.isNotEmpty) {
+            _notificationProvider!.addNotification(NotificationModel(
+              id: const Uuid().v4(),
+              userId: notifyUserId,
+              relatedTaskId: task.id,
+              title: title,
+              message: message,
+              createdAt: DateTime.now(),
+              type: 'status_update',
+            ));
+          }
+        }
         return true;
       }
     }

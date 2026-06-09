@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../widgets/common/main_layout.dart';
 import '../providers/auth_provider.dart';
+import '../providers/project_provider.dart';
+import '../providers/task_provider.dart';
+import '../providers/notification_provider.dart';
 import '../services/firebase_seed_data.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -55,11 +58,18 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
+    final projectProvider = Provider.of<ProjectProvider>(context);
+    final taskProvider = Provider.of<TaskProvider>(context);
+
     final user = authProvider.currentUser;
     final userName = user?.name ?? 'Chưa Đăng Nhập';
     final userEmail = user?.email ?? '';
     final userRole = user?.role ?? 'member';
     final userAvatarChar = userName.isNotEmpty ? userName[0].toUpperCase() : '?';
+
+    final projectsCount = projectProvider.projects.length;
+    final totalTasks = taskProvider.tasks.length;
+    final doneTasks = taskProvider.tasks.where((t) => t.status == 'done').length;
 
     return MainLayout(
       title: 'HỒ SƠ',
@@ -139,9 +149,9 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    buildStatItem('2', 'PROJECTS'),
-                    buildStatItem('5', 'TASKS'),
-                    buildStatItem('2', 'DONE', color: Colors.green),
+                    buildStatItem(projectsCount.toString(), 'PROJECTS'),
+                    buildStatItem(totalTasks.toString(), 'TASKS'),
+                    buildStatItem(doneTasks.toString(), 'DONE', color: Colors.green),
                   ],
                 ),
               ),
@@ -252,11 +262,11 @@ class ProfileScreen extends StatelessWidget {
                     side: const BorderSide(color: Colors.red),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: () async {
-                    await authProvider.logout();
-                    if (context.mounted) {
-                      Navigator.pushReplacementNamed(context, '/login');
-                    }
+                  onPressed: () {
+                    // Chuyển màn hình trước khi logout để tránh chớp đỏ (UI rebuild với user = null)
+                    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                    Provider.of<NotificationProvider>(context, listen: false).clearNotifications();
+                    authProvider.logout();
                   },
                   child: const Text(
                     'Đăng xuất',

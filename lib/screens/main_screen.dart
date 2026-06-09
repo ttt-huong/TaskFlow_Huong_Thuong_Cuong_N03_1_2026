@@ -5,6 +5,7 @@ import '../core/app_colors.dart';
 import '../providers/auth_provider.dart';
 import '../providers/project_provider.dart';
 import '../providers/task_provider.dart';
+import '../providers/connectivity_provider.dart';
 import 'home_screen.dart';
 import 'project_list_screen.dart';
 import 'user_list_screen.dart';
@@ -19,6 +20,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  bool _wasOnline = true; // theo dõi trạng thái trước để phát hiện reconnect
 
   final List<Widget> _managerPages = [
     const HomeScreen(),
@@ -296,28 +298,54 @@ class _MainScreenState extends State<MainScreen> {
     final role = authProvider.currentUser?.role ?? 'member';
     final pages = role == 'manager' ? _managerPages : _memberPages;
     final navItems = _getNavItems(role);
+    final isOnline = context.watch<ConnectivityProvider>().isOnline;
+
+    // Hiển thị SnackBar khi mạng vừa trở lại
+    if (isOnline && !_wasOnline) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.wifi_rounded, color: Colors.white, size: 18),
+                  SizedBox(width: 8),
+                  Text('Đã kết nối lại — đang đồng bộ dữ liệu...'),
+                ],
+              ),
+              backgroundColor: const Color(0xFF16A34A),
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+        }
+      });
+    }
+    _wasOnline = isOnline;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Stack(
         children: [
           // ── Page content ──
-          pages[_currentIndex],
+          pages[_currentIndex < pages.length ? _currentIndex : 0],
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: role == 'manager'
           ? Container(
-              width: 64,
-              height: 64,
-              margin: const EdgeInsets.only(bottom: 10),
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
+                shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.primary.withValues(alpha: 0.35),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -325,35 +353,31 @@ class _MainScreenState extends State<MainScreen> {
                 onPressed: () => _showCreateTaskSheet(context),
                 backgroundColor: AppColors.primary,
                 elevation: 0,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
+                shape: const CircleBorder(),
                 child: const Icon(Icons.add, color: Colors.white, size: 28),
               ),
             )
           : null,
-      // Floating nav bar placed above FAB (space for center)
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.only(left: 20, right: 20, bottom: 24),
-        child: _FloatingNavBar(
-          items: navItems,
-          currentIndex: _currentIndex,
-          onTap: (i) {
-            if (_currentIndex != i) {
-              setState(() => _currentIndex = i);
-              if (i == 0) {
-                final user = authProvider.currentUser;
-                if (user != null) {
-                  final taskProvider = Provider.of<TaskProvider>(context, listen: false);
-                  if (user.isManager) {
-                    taskProvider.loadAllTasks();
-                  } else {
-                    taskProvider.loadMyTasks(user.id);
-                  }
+      bottomNavigationBar: _CustomBottomNavBar(
+        items: navItems,
+        currentIndex: _currentIndex,
+        onTap: (i) {
+          if (_currentIndex != i) {
+            setState(() => _currentIndex = i);
+            if (i == 0) {
+              final user = authProvider.currentUser;
+              if (user != null) {
+                final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+                if (user.isManager) {
+                  taskProvider.loadAllTasks();
+                } else {
+                  taskProvider.loadMyTasks(user.id);
                 }
               }
             }
-          },
-        ),
+          }
+        },
+        hasNotch: role == 'manager',
       ),
     );
   }
@@ -367,98 +391,78 @@ class _NavItem {
   const _NavItem(this.icon, this.activeIcon, this.label);
 }
 
-// ─── Floating NavBar Widget ───
-class _FloatingNavBar extends StatelessWidget {
+// ─── Custom NavBar Widget ───
+class _CustomBottomNavBar extends StatelessWidget {
   final List<_NavItem> items;
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final bool hasNotch;
 
-  const _FloatingNavBar({
+  const _CustomBottomNavBar({
     required this.items,
     required this.currentIndex,
     required this.onTap,
+    required this.hasNotch,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(30),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.90),
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.08),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: () {
-              final List<Widget> children = [];
-              final int mid = (items.length / 2).floor();
-              for (int i = 0; i < items.length; i++) {
-                if (i == mid) {
-                  // reserve center gap for FAB
-                  children.add(const SizedBox(width: 64));
-                }
-                final item = items[i];
-                final active = currentIndex == i;
-                children.add(GestureDetector(
-                  onTap: () => onTap(i),
-                  behavior: HitTestBehavior.opaque,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: active
-                          ? AppColors.primary.withValues(alpha: 0.10)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
+    return BottomAppBar(
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 24,
+      shadowColor: Colors.black.withValues(alpha: 0.3),
+      shape: hasNotch ? const CircularNotchedRectangle() : null,
+      notchMargin: 10,
+      padding: EdgeInsets.zero,
+      child: SizedBox(
+        height: 65,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: () {
+            final List<Widget> children = [];
+            final int mid = (items.length / 2).floor();
+            for (int i = 0; i < items.length; i++) {
+              if (hasNotch && i == mid) {
+                // Reserve center gap for FAB
+                children.add(const SizedBox(width: 48));
+              }
+              final item = items[i];
+              final active = currentIndex == i;
+              children.add(
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => onTap(i),
+                    behavior: HitTestBehavior.opaque,
+                    child: Column(
                       mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           active ? item.activeIcon : item.icon,
-                          color: active
-                              ? AppColors.primary
-                              : AppColors.secondaryText,
-                          size: 22,
+                          color: active ? AppColors.primary : AppColors.secondaryText,
+                          size: 24, // Kích thước icon 24px theo thiết kế
                         ),
-                        if (active) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            item.label,
-                            style: const TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
+                        const SizedBox(height: 2), // Khoảng cách 2px theo thiết kế
+                        Text(
+                          item.label,
+                          style: TextStyle(
+                            color: active ? AppColors.primary : AppColors.secondaryText,
+                            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                            fontSize: 12, // Kích thước font 12px theo thiết kế
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   ),
-                ));
-              }
-              return children;
-            }(),
-          ),
-          ),
+                ),
+              );
+            }
+            return children;
+          }(),
         ),
       ),
     );
   }
 }
+

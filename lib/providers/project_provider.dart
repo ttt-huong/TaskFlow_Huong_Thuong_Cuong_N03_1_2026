@@ -62,4 +62,10 @@ class ProjectProvider extends ChangeNotifier {
     _projects.removeWhere((p) => p.id == projectId);
     notifyListeners();
   }
+
+  /// Đồng bộ các Project đang pending lên Firestore
+  Future<void> syncPending() async {
+    await _projectRepository.syncPendingProjects();
+  }
 }
+

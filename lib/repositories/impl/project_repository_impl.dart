@@ -1,31 +1,23 @@
-import 'dart:io';
-import 'package:firebase_core/firebase_core.dart' show Firebase;
 import '../project_repository.dart';
 import '../../models/project_model.dart';
 import '../../services/firebase_service.dart';
 import '../../services/sqlite_service.dart';
+import '../../services/connectivity_service.dart';
 
 class ProjectRepositoryImpl implements ProjectRepository {
   final FirebaseService _firebaseService = FirebaseService();
   final SQLiteService _sqliteService = SQLiteService();
 
-  Future<bool> _hasNetwork() async {
-    if (Firebase.apps.isEmpty) return false;
-    try {
-      final result = await InternetAddress.lookup('google.com');
-      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-    } on SocketException catch (_) {
-      return false;
-    }
-  }
+  bool get _isOnline => ConnectivityService.instance.isOnline;
 
   @override
   Future<List<ProjectModel>> getProjects() async {
-    if (await _hasNetwork()) {
+    if (_isOnline) {
       try {
         final projects = await _firebaseService.getProjects();
         for (var p in projects) {
-          await _sqliteService.cacheProject(p);
+          // Cache từ server → đánh dấu đã đồng bộ
+          await _sqliteService.cacheProject(p, isSynced: true);
         }
         return projects;
       } catch (e) {
@@ -54,26 +46,48 @@ class ProjectRepositoryImpl implements ProjectRepository {
 
   @override
   Future<void> addProject(ProjectModel project) async {
-    if (await _hasNetwork()) {
+    if (_isOnline) {
       await _firebaseService.saveProject(project);
+      await _sqliteService.cacheProject(project, isSynced: true);
+    } else {
+      // Offline → lưu local với isSynced=0, chờ sync khi có mạng
+      await _sqliteService.cacheProject(project, isSynced: false);
     }
-    await _sqliteService.cacheProject(project);
   }
 
   @override
   Future<void> updateProject(ProjectModel project) async {
-    if (await _hasNetwork()) {
+    if (_isOnline) {
       await _firebaseService.saveProject(project);
+      await _sqliteService.cacheProject(project, isSynced: true);
+    } else {
+      // Offline → cập nhật local, đánh dấu chờ sync
+      await _sqliteService.cacheProject(project, isSynced: false);
     }
-    await _sqliteService.cacheProject(project);
   }
 
   @override
   Future<void> deleteProject(String id) async {
-    if (await _hasNetwork()) {
+    if (_isOnline) {
       await _firebaseService.deleteProject(id);
     }
     await _sqliteService.deleteProject(id);
+  }
+
+  /// Đồng bộ các Project đang pending lên Firestore (Background Sync)
+  Future<void> syncPendingProjects() async {
+    if (!_isOnline) return;
+    try {
+      final pendingProjects = await _sqliteService.getUnsyncedProjects();
+      for (var project in pendingProjects) {
+        try {
+          await _firebaseService.saveProject(project);
+          await _sqliteService.markProjectSynced(project.id);
+        } catch (_) {
+          // Bỏ qua project lỗi, retry ở lần sau
+        }
+      }
+    } catch (_) {}
   }
 
   @override

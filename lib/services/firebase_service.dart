@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/task_model.dart';
 import '../models/project_model.dart';
 import '../models/user_model.dart';
+import '../models/notification_model.dart';
 
 class FirebaseService {
   bool get _isFirebaseReady => Firebase.apps.isNotEmpty;
@@ -114,5 +115,62 @@ class FirebaseService {
     for (var doc in snapshot.docs) {
       await doc.reference.delete();
     }
+  }
+
+  // --- Notifications ---
+  Future<List<NotificationModel>> getNotificationsByUser(String userId) async {
+    if (!_isFirebaseReady) return [];
+    
+    // Lấy thông báo cá nhân HOẶC broadcast (userId == null)
+    // Firestore không hỗ trợ OR query trực tiếp trên 1 trường dễ dàng,
+    // nên ta tải tất cả cá nhân và broadcast, hoặc lấy query cơ bản và mix.
+    // Để đơn giản, giả sử tải thông báo đích danh và broadcast.
+    final personalSnap = await _firestore
+        .collection('notifications')
+        .where('userId', isEqualTo: userId)
+        .get();
+        
+    final broadcastSnap = await _firestore
+        .collection('notifications')
+        .where('userId', isNull: true)
+        .get();
+
+    final List<NotificationModel> notifs = [];
+    notifs.addAll(personalSnap.docs.map((doc) => NotificationModel.fromMap(doc.data())));
+    notifs.addAll(broadcastSnap.docs.map((doc) => NotificationModel.fromMap(doc.data())));
+    
+    // Sort bằng Dart
+    notifs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return notifs;
+  }
+
+  Future<void> saveNotification(NotificationModel notification) async {
+    if (!_isFirebaseReady) return;
+    await _firestore
+        .collection('notifications')
+        .doc(notification.id)
+        .set(notification.toMap());
+  }
+
+  Future<void> markNotificationRead(String notificationId) async {
+    if (!_isFirebaseReady) return;
+    await _firestore
+        .collection('notifications')
+        .doc(notificationId)
+        .update({'isRead': 1});
+  }
+
+  Future<void> deleteNotificationsByTaskId(String taskId) async {
+    if (!_isFirebaseReady) return;
+    final snapshot = await _firestore
+        .collection('notifications')
+        .where('relatedTaskId', isEqualTo: taskId)
+        .get();
+        
+    final batch = _firestore.batch();
+    for (var doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
   }
 }
