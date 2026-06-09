@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
@@ -33,7 +32,14 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => TaskProvider()),
         ChangeNotifierProvider(create: (_) => ProjectProvider()),
-        ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, NotificationProvider>(
+          create: (_) => NotificationProvider(),
+          update: (_, authProvider, previous) {
+            final provider = previous ?? NotificationProvider();
+            provider.updateUser(authProvider.currentUser);
+            return provider;
+          },
+        ),
         // ConnectivityProvider phải được tạo sau TaskProvider & ProjectProvider
         // vì nó cần gọi syncPending() khi có mạng trở lại
         ChangeNotifierProxyProvider2<TaskProvider, ProjectProvider,

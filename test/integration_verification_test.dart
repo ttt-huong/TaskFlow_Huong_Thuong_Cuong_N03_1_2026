@@ -11,8 +11,25 @@ import 'package:my_app/models/task_model.dart';
 import 'package:my_app/screens/main_screen.dart';
 import 'package:my_app/screens/project_task_screen.dart';
 import 'package:my_app/screens/task_detail_screen.dart';
+import 'package:my_app/providers/notification_provider.dart';
+import 'package:my_app/models/notification_model.dart';
 
 // Mocks
+class MockNotificationProvider extends NotificationProvider {
+  @override
+  List<NotificationModel> get notifications => [];
+  @override
+  int get unreadCount => 0;
+  @override
+  Future<void> loadNotifications() async {}
+  @override
+  Future<void> markAllAsRead() async {}
+  @override
+  Future<void> markAsRead(String id) async {}
+  @override
+  Future<void> addNotification(NotificationModel notification) async {}
+}
+
 class MockAuthProvider extends AuthProvider {
   UserModel? _currentUser;
   
@@ -145,6 +162,7 @@ void main() {
         ChangeNotifierProvider<ProjectProvider>.value(value: mockProjectProvider),
         ChangeNotifierProvider<TaskProvider>.value(value: mockTaskProvider),
         ChangeNotifierProvider<ConnectivityProvider>(create: (_) => ConnectivityProvider()),
+        ChangeNotifierProvider<NotificationProvider>.value(value: MockNotificationProvider()),
       ],
       child: const MaterialApp(
         home: MainScreen(),
@@ -159,6 +177,7 @@ void main() {
         ChangeNotifierProvider<ProjectProvider>.value(value: mockProjectProvider),
         ChangeNotifierProvider<TaskProvider>.value(value: mockTaskProvider),
         ChangeNotifierProvider<ConnectivityProvider>(create: (_) => ConnectivityProvider()),
+        ChangeNotifierProvider<NotificationProvider>.value(value: MockNotificationProvider()),
       ],
       child: const MaterialApp(
         home: ProjectTaskScreen(projectId: 'p1', projectName: 'Test Project'),
@@ -172,6 +191,7 @@ void main() {
         ChangeNotifierProvider<AuthProvider>.value(value: mockAuthProvider),
         ChangeNotifierProvider<TaskProvider>.value(value: mockTaskProvider),
         ChangeNotifierProvider<ConnectivityProvider>(create: (_) => ConnectivityProvider()),
+        ChangeNotifierProvider<NotificationProvider>.value(value: MockNotificationProvider()),
       ],
       child: MaterialApp(
         home: TaskDetailScreen(task: task),
@@ -246,6 +266,7 @@ void main() {
     final btn = find.text('BẮT ĐẦU LÀM');
     expect(btn, findsOneWidget);
     
+    await tester.ensureVisible(btn);
     await tester.tap(btn);
     await tester.pumpAndSettle();
 

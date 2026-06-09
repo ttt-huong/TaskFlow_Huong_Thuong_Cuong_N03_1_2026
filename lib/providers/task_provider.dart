@@ -13,10 +13,22 @@ class TaskProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
+  // Lưu trữ thống kê tiến độ từng dự án
+  final Map<String, Map<String, dynamic>> _projectStats = {};
+  Map<String, Map<String, dynamic>> get projectStats => _projectStats;
+
   // ── Phân trang (Pagination) ──
   bool _hasMore = true;
   bool get hasMore => _hasMore;
   static const int _pageSize = 20;
+
+  /// Tải thống kê cho danh sách các dự án
+  Future<void> loadProjectStats(List<String> projectIds) async {
+    for (var id in projectIds) {
+      _projectStats[id] = await _taskRepository.getProjectStatistics(id);
+    }
+    notifyListeners();
+  }
 
   /// Tải danh sách Task theo Project (toàn bộ, không phân trang với Firestore)
   Future<void> loadTasksByProject(String projectId) async {
@@ -48,7 +60,7 @@ class TaskProvider extends ChangeNotifier {
 
   /// Tạo Task mới
   Future<void> createTask(String title, String description, String projectId,
-      String assignedTo, DateTime deadline, {String assigneeName = '', String assigneeAvatar = ''}) async {
+      String assignedTo, DateTime deadline, {String assigneeName = '', String assigneeAvatar = '', bool isUrgent = false}) async {
     final newTask = Task(
       id: '',
       title: title,
@@ -59,9 +71,15 @@ class TaskProvider extends ChangeNotifier {
       deadline: deadline,
       assigneeName: assigneeName,
       assigneeAvatar: assigneeAvatar,
+      isUrgent: isUrgent,
     );
     await _taskRepository.addTask(newTask);
     _tasks.add(newTask);
+    
+    // Cập nhật lại stats nếu đã có trong cache
+    if (_projectStats.containsKey(projectId)) {
+      _projectStats[projectId] = await _taskRepository.getProjectStatistics(projectId);
+    }
     notifyListeners();
   }
 
@@ -79,9 +97,18 @@ class TaskProvider extends ChangeNotifier {
 
   /// Xóa Task (Chỉ Manager)
   Future<void> deleteTask(String taskId) async {
-    await _taskRepository.deleteTask(taskId);
-    _tasks.removeWhere((t) => t.id == taskId);
-    notifyListeners();
+    final index = _tasks.indexWhere((t) => t.id == taskId);
+    if (index >= 0) {
+      final projectId = _tasks[index].projectId;
+      await _taskRepository.deleteTask(taskId);
+      _tasks.removeAt(index);
+      
+      // Cập nhật lại stats nếu đã có trong cache
+      if (_projectStats.containsKey(projectId)) {
+        _projectStats[projectId] = await _taskRepository.getProjectStatistics(projectId);
+      }
+      notifyListeners();
+    }
   }
 
   /// Đồng bộ background pending tasks
@@ -95,12 +122,18 @@ class TaskProvider extends ChangeNotifier {
     final index = _tasks.indexWhere((t) => t.id == taskId);
     if (index >= 0) {
       final task = _tasks[index];
+      final projectId = task.projectId;
       // Kiểm tra tính hợp lệ trước khi gọi repository
       final validationError = Task.validateTransition(task.status, newStatus);
       if (validationError != null) return false;
 
       if (await task.updateStatus(newStatus)) {
         await _taskRepository.updateTask(task);
+        
+        // Cập nhật lại stats nếu đã có trong cache
+        if (_projectStats.containsKey(projectId)) {
+          _projectStats[projectId] = await _taskRepository.getProjectStatistics(projectId);
+        }
         notifyListeners();
         return true;
       }

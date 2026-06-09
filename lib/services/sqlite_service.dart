@@ -301,4 +301,26 @@ class SQLiteService {
       {'isRead': 1},
     );
   }
+
+  // --- User profile updates ---
+  Future<void> updateUserName(String userId, String newName) async {
+    final database = await db;
+    await database.update(
+      'users_local',
+      {'name': newName, 'avatarChar': newName.isNotEmpty ? newName[0].toUpperCase() : 'U'},
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
+  }
+
+  Future<void> updateUserPassword(String userId, String newPassword) async {
+    final database = await db;
+    await database.update(
+      'users_local',
+      {'password': newPassword},
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
+  }
 }
+

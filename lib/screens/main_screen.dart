@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_colors.dart';
@@ -56,8 +55,8 @@ class _MainScreenState extends State<MainScreen> {
     final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
     final taskProvider = Provider.of<TaskProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    
-    // Load projects and users in the background
+
+    // Load dự án và danh sách user
     final currentUser = authProvider.currentUser;
     if (currentUser != null) {
       projectProvider.loadProjects(currentUser);
@@ -66,229 +65,416 @@ class _MainScreenState extends State<MainScreen> {
 
     final titleController = TextEditingController();
     final descController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
     String? selectedProjectId;
     String? selectedUserId;
-    DateTime? selectedDeadline = DateTime.now().add(const Duration(days: 3));
+    DateTime selectedDeadline = DateTime.now().add(const Duration(days: 3));
+    bool isUrgent = false;
+    bool isSubmitting = false;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) {
+      builder: (sheetContext) {
         return StatefulBuilder(
-          builder: (context, setSheetState) {
+          builder: (sheetContext, setSheetState) {
             final projects = projectProvider.projects;
-            final users = projectProvider.allUsers;
+            final allUsers = projectProvider.allUsers;
+
+            // Lọc assignee theo thành viên dự án đã chọn
+            final assignableUsers = selectedProjectId == null
+                ? allUsers
+                : () {
+                    final selectedProject = projects.firstWhere(
+                      (p) => p.id == selectedProjectId,
+                      orElse: () => projects.isEmpty
+                          ? throw Exception('no project')
+                          : projects.first,
+                    );
+                    return allUsers
+                        .where((u) => selectedProject.memberIds.contains(u.id))
+                        .toList();
+                  }();
+
+            // Nếu user được chọn không thuộc dự án mới → reset
+            if (selectedUserId != null &&
+                assignableUsers.every((u) => u.id != selectedUserId)) {
+              selectedUserId = null;
+            }
 
             return Container(
               padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
               ),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 48,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Tạo nhiệm vụ mới',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.text,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: titleController,
-                    decoration: InputDecoration(
-                      hintText: 'Tiêu đề nhiệm vụ',
-                      filled: true,
-                      fillColor: const Color(0xFFF8F9FD),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: descController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      hintText: 'Mô tả chi tiết',
-                      filled: true,
-                      fillColor: const Color(0xFFF8F9FD),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Project dropdown
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedProjectId,
-                    hint: const Text('Chọn dự án'),
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: const Color(0xFFF8F9FD),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                    items: projects.map((p) {
-                      return DropdownMenuItem<String>(
-                        value: p.id,
-                        child: Text(p.name),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      setSheetState(() {
-                        selectedProjectId = val;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  // Assignee dropdown
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedUserId,
-                    hint: const Text('Giao cho thành viên'),
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: const Color(0xFFF8F9FD),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                    items: users.map((u) {
-                      return DropdownMenuItem<String>(
-                        value: u.id,
-                        child: Text(u.name),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      setSheetState(() {
-                        selectedUserId = val;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  // Deadline row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Hạn chót:',
-                        style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.secondaryText),
-                      ),
-                      TextButton.icon(
-                        icon: const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.primary),
-                        label: Text(
-                          selectedDeadline == null
-                              ? 'Chọn ngày'
-                              : '${selectedDeadline!.day.toString().padLeft(2, '0')}/${selectedDeadline!.month.toString().padLeft(2, '0')}/${selectedDeadline!.year}',
-                          style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+                      // Handle bar
+                      Center(
+                        child: Container(
+                          width: 48,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
-                        onPressed: () async {
-                          final d = await showDatePicker(
-                            context: context,
-                            initialDate: selectedDeadline ?? DateTime.now(),
-                            firstDate: DateTime.now(),
-                            lastDate: DateTime(2030),
-                          );
-                          if (d != null) {
-                            setSheetState(() {
-                              selectedDeadline = d;
-                            });
-                          }
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Header
+                      Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.task_alt_rounded, color: AppColors.primary, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Tạo nhiệm vụ mới',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.text,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      // ── Tiêu đề ──
+                      _sheetLabel('Tiêu đề *'),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: titleController,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: _sheetInputDecoration(
+                          hint: 'Nhập tiêu đề nhiệm vụ',
+                          icon: Icons.title_rounded,
+                        ),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Vui lòng nhập tiêu đề';
+                          if (v.trim().length < 3) return 'Tiêu đề quá ngắn (tối thiểu 3 ký tự)';
+                          return null;
                         },
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final title = titleController.text.trim();
-                        final desc = descController.text.trim();
-                        if (title.isNotEmpty && selectedProjectId != null && selectedUserId != null) {
-                          final user = users.firstWhere((u) => u.id == selectedUserId);
-                          final assigneeName = user.name;
-                          final assigneeAvatar = user.name.isNotEmpty ? user.name[0].toUpperCase() : '?';
+                      const SizedBox(height: 14),
 
-                          await taskProvider.createTask(
-                            title,
-                            desc,
-                            selectedProjectId!,
-                            selectedUserId!,
-                            selectedDeadline ?? DateTime.now().add(const Duration(days: 3)),
-                            assigneeName: assigneeName,
-                            assigneeAvatar: assigneeAvatar,
-                          );
+                      // ── Mô tả ──
+                      _sheetLabel('Mô tả'),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: descController,
+                        maxLines: 3,
+                        decoration: _sheetInputDecoration(
+                          hint: 'Thêm mô tả chi tiết (tuỳ chọn)',
+                          icon: Icons.notes_rounded,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
 
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Đã tạo nhiệm vụ: "$title"'),
-                                backgroundColor: AppColors.primary,
+                      // ── Dự án ──
+                      _sheetLabel('Dự án *'),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedProjectId,
+                        hint: const Text('Chọn dự án', style: TextStyle(color: AppColors.secondaryText, fontSize: 14)),
+                        decoration: _sheetInputDecoration(
+                          hint: '',
+                          icon: Icons.folder_outlined,
+                        ),
+                        items: projects.map((p) => DropdownMenuItem(
+                          value: p.id,
+                          child: Text(p.name, overflow: TextOverflow.ellipsis),
+                        )).toList(),
+                        onChanged: (val) => setSheetState(() {
+                          selectedProjectId = val;
+                          selectedUserId = null; // reset assignee khi đổi dự án
+                        }),
+                        validator: (v) => v == null ? 'Vui lòng chọn dự án' : null,
+                      ),
+                      const SizedBox(height: 14),
+
+                      // ── Giao cho ──
+                      _sheetLabel('Giao cho *'),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedUserId,
+                        hint: Text(
+                          selectedProjectId == null
+                              ? 'Chọn dự án trước'
+                              : assignableUsers.isEmpty
+                                  ? 'Dự án chưa có thành viên'
+                                  : 'Chọn thành viên',
+                          style: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
+                        ),
+                        decoration: _sheetInputDecoration(
+                          hint: '',
+                          icon: Icons.person_outline_rounded,
+                        ),
+                        items: assignableUsers.map((u) => DropdownMenuItem(
+                          value: u.id,
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 12,
+                                backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+                                child: Text(
+                                  u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                            );
-                          }
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Vui lòng điền đầy đủ thông tin'),
-                              backgroundColor: Colors.redAccent,
+                              const SizedBox(width: 8),
+                              Flexible(child: Text(u.name, overflow: TextOverflow.ellipsis)),
+                            ],
+                          ),
+                        )).toList(),
+                        onChanged: selectedProjectId == null
+                            ? null
+                            : (val) => setSheetState(() => selectedUserId = val),
+                        validator: (v) => v == null ? 'Vui lòng chọn người thực hiện' : null,
+                      ),
+                      const SizedBox(height: 14),
+
+                      // ── Deadline ──
+                      _sheetLabel('Hạn chót *'),
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: () async {
+                          final d = await showDatePicker(
+                            context: sheetContext,
+                            initialDate: selectedDeadline,
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime(2030),
+                            builder: (ctx, child) => Theme(
+                              data: Theme.of(ctx).copyWith(
+                                colorScheme: const ColorScheme.light(
+                                  primary: AppColors.primary,
+                                ),
+                              ),
+                              child: child!,
                             ),
                           );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          if (d != null) setSheetState(() => selectedDeadline = d);
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8F9FD),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.calendar_today_rounded, size: 18, color: AppColors.secondaryText),
+                              const SizedBox(width: 12),
+                              Text(
+                                '${selectedDeadline.day.toString().padLeft(2, '0')}/${selectedDeadline.month.toString().padLeft(2, '0')}/${selectedDeadline.year}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.text,
+                                ),
+                              ),
+                              const Spacer(),
+                              const Icon(Icons.chevron_right_rounded, color: AppColors.secondaryText, size: 20),
+                            ],
+                          ),
                         ),
-                        elevation: 0,
                       ),
-                      child: const Text(
-                        'Tạo nhiệm vụ',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      const SizedBox(height: 14),
+
+                      // ── Mức độ ưu tiên ──
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isUrgent
+                              ? const Color(0xFFFFF3E0)
+                              : const Color(0xFFF8F9FD),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isUrgent
+                                ? Colors.orange.shade300
+                                : const Color(0xFFE2E8F0),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.priority_high_rounded,
+                              color: isUrgent ? Colors.orange.shade700 : AppColors.secondaryText,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Nhiệm vụ khẩn cấp',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: isUrgent ? Colors.orange.shade700 : AppColors.text,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            Switch(
+                              value: isUrgent,
+                              onChanged: (v) => setSheetState(() => isUrgent = v),
+                              activeThumbColor: Colors.orange,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 22),
+
+                      // ── Nút tạo ──
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: isSubmitting
+                              ? null
+                              : () async {
+                                  if (!formKey.currentState!.validate()) return;
+                                  setSheetState(() => isSubmitting = true);
+
+                                  final title = titleController.text.trim();
+                                  final desc = descController.text.trim();
+                                  final user = allUsers.firstWhere((u) => u.id == selectedUserId!);
+
+                                  await taskProvider.createTask(
+                                    title,
+                                    desc,
+                                    selectedProjectId!,
+                                    selectedUserId!,
+                                    selectedDeadline,
+                                    assigneeName: user.name,
+                                    assigneeAvatar: user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+                                    isUrgent: isUrgent,
+                                  );
+
+                                  if (sheetContext.mounted) {
+                                    Navigator.pop(sheetContext);
+                                  }
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Row(
+                                          children: [
+                                            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                                            const SizedBox(width: 8),
+                                            Flexible(child: Text('Đã tạo: "$title"')),
+                                          ],
+                                        ),
+                                        backgroundColor: AppColors.done,
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                    );
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: isSubmitting
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.add_task_rounded, size: 20),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Tạo nhiệm vụ',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                   ),
-                ],
+                ),
               ),
             );
           },
         );
       },
+    );
+  }
+
+  // ── Helpers dùng trong sheet ──
+  static Widget _sheetLabel(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: AppColors.text,
+      ),
+    );
+  }
+
+  static InputDecoration _sheetInputDecoration({required String hint, required IconData icon}) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
+      prefixIcon: Icon(icon, color: AppColors.secondaryText, size: 18),
+      filled: true,
+      fillColor: const Color(0xFFF8F9FD),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error, width: 2),
+      ),
     );
   }
 

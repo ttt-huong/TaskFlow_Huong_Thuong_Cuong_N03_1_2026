@@ -32,7 +32,10 @@ class ProjectProvider extends ChangeNotifier {
   }
 
   Future<void> loadAllUsers() async {
+    _isLoading = true;
+    notifyListeners();
     _allUsers = await _userRepository.getUsers();
+    _isLoading = false;
     notifyListeners();
   }
 
