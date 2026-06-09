@@ -1,55 +1,54 @@
 import 'package:flutter/material.dart';
+import '../core/app_colors.dart';
+import '../widgets/common/main_layout.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
 
   @override
-  State<EditProfileScreen> createState() =>
-      _EditProfileScreenState();
+  State<EditProfileScreen> createState() => _EditProfileScreenState();
 }
 
-class _EditProfileScreenState
-    extends State<EditProfileScreen> {
-
-  final TextEditingController nameController =
-      TextEditingController(
-    text: "Tran Thi B",
+class _EditProfileScreenState extends State<EditProfileScreen> {
+  final TextEditingController nameController = TextEditingController(
+    text: 'Tran Thi B',
   );
 
-  final TextEditingController emailController =
-      TextEditingController(
-    text: "b@gmail.com",
+  final TextEditingController emailController = TextEditingController(
+    text: 'b@gmail.com',
   );
 
-  final TextEditingController phoneController =
-      TextEditingController(
-    text: "0123456789",
+  final TextEditingController phoneController = TextEditingController(
+    text: '0123456789',
   );
+
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+  }) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: AppColors.primary),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: AppColors.grey.withOpacity(0.3)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: AppColors.primary.withOpacity(0.5)),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
-
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-
-        centerTitle: true,
-
-        title: const Text(
-          "Chỉnh sửa thông tin",
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-
-        iconTheme: const IconThemeData(
-          color: Colors.black,
-        ),
-      ),
-
+    return MainLayout(
+      title: 'CHỈNH SỬA',
+      showImage: false,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
 
@@ -76,7 +75,7 @@ class _EditProfileScreenState
                     padding: const EdgeInsets.all(8),
 
                     decoration: BoxDecoration(
-                      color: Colors.deepPurple,
+                      color: AppColors.primary,
                       borderRadius:
                           BorderRadius.circular(30),
                     ),
@@ -113,63 +112,22 @@ class _EditProfileScreenState
 
               child: Column(
                 children: [
-
-                  // ===== NAME =====
-                  TextField(
+                  _buildInputField(
                     controller: nameController,
-
-                    decoration: InputDecoration(
-                      labelText: "Họ và tên",
-
-                      prefixIcon: const Icon(
-                        Icons.person,
-                      ),
-
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(14),
-                      ),
-                    ),
+                    label: 'Họ và tên',
+                    icon: Icons.person,
                   ),
-
                   const SizedBox(height: 20),
-
-                  // ===== EMAIL =====
-                  TextField(
+                  _buildInputField(
                     controller: emailController,
-
-                    decoration: InputDecoration(
-                      labelText: "Email",
-
-                      prefixIcon: const Icon(
-                        Icons.email,
-                      ),
-
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(14),
-                      ),
-                    ),
+                    label: 'Email',
+                    icon: Icons.email,
                   ),
-
                   const SizedBox(height: 20),
-
-                  // ===== PHONE =====
-                  TextField(
+                  _buildInputField(
                     controller: phoneController,
-
-                    decoration: InputDecoration(
-                      labelText: "Số điện thoại",
-
-                      prefixIcon: const Icon(
-                        Icons.phone,
-                      ),
-
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(14),
-                      ),
-                    ),
+                    label: 'Số điện thoại',
+                    icon: Icons.phone,
                   ),
                 ],
               ),
@@ -183,8 +141,7 @@ class _EditProfileScreenState
 
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      Colors.deepPurple,
+                  backgroundColor: AppColors.primary,
 
                   padding:
                       const EdgeInsets.symmetric(

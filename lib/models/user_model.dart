@@ -17,19 +17,20 @@ class UserModel {
     required this.name,
     required this.email,
     required this.password,
-    required this.role,
+    required String role,
     // Gán giá trị mặc định để các hàm đăng ký/đăng nhập cũ không bị lỗi compile
     this.avatarChar = '',
-  });
+  }) : role = role.trim().toLowerCase();
 
   factory UserModel.fromMap(Map<String, dynamic> data, String id) {
     String userName = data['name'] ?? '';
+    final String roleValue = (data['role'] as String?)?.trim().toLowerCase() ?? 'member';
     return UserModel(
       id: id,
       name: userName,
       email: data['email'] ?? '',
       password: data['password'] ?? '123456', // Default cho dữ liệu cũ
-      role: data['role'] ?? 'member',
+      role: roleValue,
       // Tự động lấy chữ cái đầu tiên của Tên để làm Avatar nếu DB chưa lưu trường này
       avatarChar:
           data['avatarChar'] ??
@@ -48,7 +49,7 @@ class UserModel {
     };
   }
 
-  bool get isManager => role == 'manager';
+  bool get isManager => role.trim().toLowerCase() == 'manager';
 
   @override
   String toString() => 'UserModel(id: $id, name: $name, role: $role)';

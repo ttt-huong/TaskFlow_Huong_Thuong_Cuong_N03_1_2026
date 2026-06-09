@@ -22,7 +22,7 @@ class AuthProvider extends ChangeNotifier {
   // QUAN TRỌNG: Không bao giờ tin tưởng quyền Manager khi Offline
   bool get isManager {
     if (_isOfflineMode) return false; // Offline mặc định là Member/Guest hạn chế
-    return _currentUser?.role == 'manager';
+    return _currentUser?.isManager ?? false;
   }
 
   Future<bool> login(String email, String password) async {

@@ -61,8 +61,13 @@
    - **Nhiệm vụ**: Thiết kế giao diện thẻ dự án, thanh tìm kiếm và phân loại công việc.
 
 3. **Nguyễn Thị Thương**
-   - **Phụ trách**: Xây dựng **Trang About** (Hồ sơ cá nhân).
-   - **Nhiệm vụ**: Thiết kế trang Profile, hiển thị thông tin cá nhân và thống kê.
+   - **Phụ trách**: Xây dựng **Trang Profile** (Hồ sơ cá nhân).
+   - **Nhiệm vụ**:
+     - Thiết kế giao diện trang Profile với thẻ thông tin cá nhân và avatar.
+     - Hiển thị tên, email, role badge, và chỉ số tổng quan: số dự án, số task, số task hoàn thành.
+     - Xây dựng chức năng điều hướng đến các tùy chọn: Chỉnh sửa thông tin, Thống kê, Thông báo và Task của tôi.
+     - Hỗ trợ phân quyền hiển thị nội dung Manager / Member với các màn hình phụ: `StatisticsProfileScreen`, `ManagerNotificationScreen`, `MemberManagementScreen`, `MemberNotificationScreen`, `MemberTaskScreen`.
+   - **File chính**: `lib/screens/profile/profile_screen.dart`, `lib/screens/edit_profile_screen.dart`.
 
 ---
 

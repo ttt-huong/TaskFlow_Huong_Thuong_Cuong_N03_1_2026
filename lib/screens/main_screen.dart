@@ -8,7 +8,7 @@ import '../providers/task_provider.dart';
 import 'home_screen.dart';
 import 'project_list_screen.dart';
 import 'user_list_screen.dart';
-import 'profile_screen.dart';
+import 'profile/profile_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -33,8 +33,8 @@ class _MainScreenState extends State<MainScreen> {
     const ProfileScreen(),
   ];
 
-  List<_NavItem> _getNavItems(String role) {
-    if (role == 'manager') {
+  List<_NavItem> _getNavItems(bool isManager) {
+    if (isManager) {
       return const [
         _NavItem(Icons.home_outlined, Icons.home_rounded, 'Trang chủ'),
         _NavItem(Icons.folder_outlined, Icons.folder_rounded, 'Dự án'),
@@ -293,9 +293,9 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
-    final role = authProvider.currentUser?.role ?? 'member';
-    final pages = role == 'manager' ? _managerPages : _memberPages;
-    final navItems = _getNavItems(role);
+    final bool isManager = authProvider.currentUser?.isManager ?? false;
+    final pages = isManager ? _managerPages : _memberPages;
+    final navItems = _getNavItems(isManager);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -306,7 +306,7 @@ class _MainScreenState extends State<MainScreen> {
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: role == 'manager'
+      floatingActionButton: isManager
           ? Container(
               width: 64,
               height: 64,
