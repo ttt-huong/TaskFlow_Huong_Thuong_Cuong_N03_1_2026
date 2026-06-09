@@ -68,7 +68,7 @@ class MockTaskProvider extends TaskProvider {
   Future<void> loadMyTasks(String userId) async {}
   
   @override
-  Future<void> loadAllTasks() async {}
+  Future<void> loadAllTasks([String userId = '']) async {}
   
   @override
   Future<bool> updateTaskStatus(String id, String status) async {

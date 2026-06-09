@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+
 import 'app.dart';
 import 'providers/auth_provider.dart';
 import 'providers/project_provider.dart';
@@ -10,7 +12,7 @@ import 'providers/connectivity_provider.dart';
 import 'services/connectivity_service.dart';
 import 'firebase_options.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Firebase (try-catch to run offline if configuration is missing)
@@ -40,7 +42,6 @@ void main() async {
           update: (_, taskProvider, projectProvider, previous) {
             previous?.updateSyncCallback(
               onBackOnline: () async {
-                await taskProvider.syncPending();
                 await projectProvider.syncPending();
               },
             );
