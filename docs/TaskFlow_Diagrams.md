@@ -340,28 +340,28 @@ flowchart TD
 
 ### 7. Deployment Diagram (Sơ đồ triển khai vật lý)
 
-Sơ đồ phân bố vật lý của các môi trường ứng dụng chạy ở client và lưu trữ đám mây phía server:
+Sơ đồ mô tả cách các thành phần của TaskFlow được triển khai trên thiết bị người dùng và dịch vụ đám mây:
 
 ```mermaid
 flowchart TD
-    subgraph ClientNode ["Thiết bị khách hàng (Client Node)"]
-        AndroidDevice["Thiết bị di động Android<br>(Hỗ trợ Flutter runtime / minSdk của dự án)"]
-        subgraph AppRuntime ["Môi trường chạy App (TaskFlow App)"]
-            FlutterApp["Ứng dụng Flutter / Dart VM"]
-            SQLiteDB[("SQLite Database file<br>(taskflow.db)")]
-            FlutterApp <--> |Đọc/Ghi cục bộ| SQLiteDB
+    subgraph ClientNode ["Thiết bị người dùng"]
+        AndroidDevice["Android Device"]
+        subgraph AppRuntime ["TaskFlow Mobile App"]
+            FlutterApp["Flutter App"]
+            SQLiteDB[("SQLite local database<br/>taskflow.db")]
+            FlutterApp <--> |"Đọc / ghi dữ liệu cục bộ"| SQLiteDB
         end
     end
 
-    subgraph CloudServer ["Đám mây Google Cloud Platform / Firebase"]
-        FirebaseAuthNode["Firebase Authentication<br>(Xác thực người dùng)"]
-        FirestoreNode["Cloud Firestore NoSQL Database<br>(Lưu trữ tài liệu và đồng bộ)"]
+    subgraph CloudServer ["Firebase / Google Cloud"]
+        FirebaseAuthNode["Firebase Authentication<br/>Xác thực người dùng"]
+        FirestoreNode["Cloud Firestore<br/>Lưu trữ và đồng bộ dữ liệu"]
     end
 
-    FlutterApp --> |HTTPS / WSS (gRPC)| FirebaseAuthNode
-    FlutterApp --> |HTTPS / WSS (gRPC)| FirestoreNode
+    AndroidDevice --> FlutterApp
+    FlutterApp --> |"HTTPS / gRPC"| FirebaseAuthNode
+    FlutterApp --> |"HTTPS / gRPC"| FirestoreNode
 
-    %% CSS Styling
     style ClientNode fill:#f8fafc,stroke:#475569,stroke-width:1.5px
     style AndroidDevice fill:#f0fdf4,stroke:#16a34a,stroke-width:1.5px
     style AppRuntime fill:#fffbeb,stroke:#d97706,stroke-width:1.5px
@@ -486,7 +486,7 @@ mindmap
       name : Tên hiển thị người dùng (String)
       email : Địa chỉ email đăng nhập (String)
       role : Vai trò (manager / member)
-      password / offlineAuthHash : Mã băm mật khẩu ngoại tuyến (String)
+      password / offlineAuthHash : Giá trị xác thực offline lưu trong SQLite local (String)
       avatarChar : Ký tự đại diện người dùng (String)
     ProjectModel
       id : Định danh dự án (String / UUID)
@@ -556,4 +556,348 @@ flowchart LR
     style ServerNode fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px
     style LocalNode fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px
     style SyncEngine fill:#fffbeb,stroke:#d97706,stroke-width:1.5px
+```
+
+---
+
+## IV. UML BỔ SUNG & SƠ ĐỒ HOẠT ĐỘNG
+
+### 12. Class Diagram (Sơ đồ lớp bổ sung - Quản lý trạng thái & Data Models)
+
+Sơ đồ mô tả mối liên kết giữa các lớp quản lý trạng thái (State Providers) và các mô hình dữ liệu chính trong ứng dụng:
+
+```mermaid
+classDiagram
+    class UserModel {
+        +String id
+        +String name
+        +String email
+        +String password
+        +String role
+        +String avatarChar
+        +bool isManager
+    }
+    class ProjectModel {
+        +String id
+        +String name
+        +String description
+        +List<String> memberIds
+        +DateTime updatedAt
+        +int isSynced
+        +int todoCount
+        +int doingCount
+        +int doneCount
+        +double progress
+    }
+    class Task {
+        +String id
+        +String title
+        +String description
+        +String projectId
+        +String assignedTo
+        +String status
+        +DateTime deadline
+        +String assigneeName
+        +String assigneeAvatar
+        +bool isUrgent
+        +DateTime updatedAt
+        +String rejectionReason
+        +int isSynced
+    }
+    class NotificationModel {
+        +String id
+        +String userId
+        +String? relatedTaskId
+        +String title
+        +String message
+        +DateTime createdAt
+        +bool isRead
+        +String type
+    }
+    
+    class AuthProvider {
+        -AuthRepositoryImpl _authRepository
+        +UserModel? currentUser
+        +bool isLoading
+        +String? errorMessage
+        +Future<bool> login(email, password)
+        +Future<bool> register(name, email, password, role)
+        +Future<void> logout()
+    }
+    class ProjectProvider {
+        -ProjectRepositoryImpl _projectRepository
+        +List<ProjectModel> projects
+        +bool isLoading
+        +Future<void> loadProjects(user)
+        +Future<void> loadAllUsers()
+        +Future<void> createProject(name, desc, memberIds)
+        +Future<void> syncPending()
+    }
+    class TaskProvider {
+        -TaskRepositoryImpl _taskRepository
+        +List<Task> tasks
+        +bool isLoading
+        +Future<void> loadTasksByProject(projectId)
+        +Future<void> createTask(...)
+        +Future<void> editTask(task)
+        +Future<bool> updateTaskStatus(id, status)
+        +Future<bool> approveTask(id)
+        +Future<bool> rejectTask(id, reason)
+        +Future<void> syncPending()
+    }
+    class NotificationProvider {
+        -SQLiteService _sqliteService
+        +List<NotificationModel> notifications
+        +int unreadCount
+        +void updateUser(user)
+        +Future<void> markAsRead(id)
+        +Future<void> markAllAsRead()
+    }
+
+    ProjectModel "1" -- "*" Task : contains
+    UserModel "1" -- "*" Task : assignedTo
+    Task "1" -- "*" NotificationModel : relatedTaskId
+    UserModel "1" -- "*" NotificationModel : userId
+    
+    AuthProvider ..> UserModel : manages
+    ProjectProvider ..> ProjectModel : manages
+    TaskProvider ..> Task : manages
+    NotificationProvider ..> NotificationModel : manages
+```
+
+---
+
+### 13. Activity Diagram - Login/Register (Sơ đồ hoạt động Đăng nhập & Đăng ký)
+
+Sơ đồ quy trình thực hiện các bước xác thực người dùng trực tuyến thông qua Firebase Auth hoặc ngoại tuyến thông qua SQLite local:
+
+```mermaid
+flowchart TD
+    Start([Bắt đầu]) --> Choice{Chọn thao tác}
+    Choice -- "Đăng nhập" --> LoginInput[Nhập Email và Mật khẩu]
+    Choice -- "Đăng ký" --> RegisterInput[Nhập Tên, Email, Mật khẩu]
+    
+    RegisterInput --> RegisterSubmit[Gửi yêu cầu đăng ký lên AuthService]
+    RegisterSubmit --> RegisterRole[Gán role mặc định = member]
+    RegisterRole --> RegisterCheck{Email đã tồn tại?}
+    RegisterCheck -- "Có" --> RegisterFail[Hiển thị lỗi và yêu cầu nhập lại]
+    RegisterFail --> RegisterInput
+    RegisterCheck -- "Không" --> RegisterSuccess[Lưu thông tin User vào Firestore và cache SQLite]
+    RegisterSuccess --> LoginInput
+    
+    LoginInput --> LoginSubmit[Gửi yêu cầu đăng nhập lên AuthService]
+    LoginSubmit --> LoginNetwork{Có mạng Internet?}
+    
+    LoginNetwork -- "Có" --> LoginOnline[Xác thực qua Firebase Auth]
+    LoginOnline --> LoginOnlineCheck{Thành công?}
+    LoginOnlineCheck -- "Có" --> LoginCache[Lưu/Cập nhật thông tin User vào SQLite local]
+    LoginOnlineCheck -- "Không" --> LoginFail[Báo lỗi thông tin tài khoản]
+    
+    LoginNetwork -- "Không" --> LoginOffline[Xác thực bằng offlineAuthHash lưu trong SQLite local]
+    LoginOffline --> LoginOfflineCheck{Mật khẩu khớp?}
+    LoginOfflineCheck -- "Có" --> LoginSuccess
+    LoginOfflineCheck -- "Không" --> LoginFail
+    
+    LoginFail --> LoginInput
+    LoginCache --> LoginSuccess([Đăng nhập thành công, chuyển hướng vào App])
+    LoginOfflineCheck -- "Có" --> LoginSuccess
+
+    style Start fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px
+    style LoginSuccess fill:#ecfdf5,stroke:#059669,stroke-width:1.5px
+    style LoginFail fill:#fef2f2,stroke:#dc2626,stroke-width:1.5px
+    style RegisterFail fill:#fef2f2,stroke:#dc2626,stroke-width:1.5px
+```
+
+---
+
+### 14. Activity Diagram - Create Project + Add Member (Sơ đồ hoạt động Tạo dự án & Thêm thành viên)
+
+Sơ đồ thể hiện quy trình của Manager khi khởi tạo dự án và đính kèm các thành viên tham gia:
+
+```mermaid
+flowchart TD
+    Start([Bắt đầu]) --> AuthCheck{Người dùng là Manager?}
+    AuthCheck -- "Không" --> Denied([Từ chối truy cập])
+    AuthCheck -- "Có" --> OpenForm[Mở Form tạo dự án]
+    
+    OpenForm --> LoadUsers[Hệ thống tải danh sách thành viên khả dụng]
+    LoadUsers --> InputInfo[Nhập Tên dự án, Mô tả & Chọn thành viên tham gia]
+    InputInfo --> Submit[Click tạo dự án]
+    
+    Submit --> NetworkCheck{Có mạng Internet?}
+    
+    NetworkCheck -- "Có" --> SaveRemote[Lưu dự án lên Firestore]
+    SaveRemote --> CacheSynced[Cache dự án vào SQLite với isSynced = 1]
+    CacheSynced --> Finish([Tạo dự án thành công, tải lại danh sách])
+    
+    NetworkCheck -- "Không" --> SaveOffline[Cache dự án vào SQLite với isSynced = 0]
+    SaveOffline --> Finish
+
+    style Start fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px
+    style Denied fill:#fef2f2,stroke:#dc2626,stroke-width:1.5px
+    style Finish fill:#ecfdf5,stroke:#059669,stroke-width:1.5px
+```
+
+---
+
+### 15. Activity Diagram - Assign Task (Sơ đồ hoạt động Giao nhiệm vụ công việc)
+
+Sơ đồ quy trình Manager phân công công việc cụ thể cho thành viên của dự án:
+
+```mermaid
+flowchart TD
+    Start([Bắt đầu]) --> OpenProject[Manager: Chọn dự án và click Giao việc]
+    OpenProject --> GetMembers[Tải danh sách thành viên thuộc dự án hiện tại]
+    GetMembers --> FillForm[Nhập Tiêu đề, Mô tả, Hạn chót & Chọn người thực hiện]
+    FillForm --> Submit[Click lưu nhiệm vụ]
+    
+    TaskCheck{assignedTo thuộc memberIds của dự án?}
+    Submit --> TaskCheck
+    TaskCheck -- "Không" --> ErrorMsg[Báo lỗi: Thành viên không thuộc dự án này]
+    ErrorMsg --> FillForm
+    
+    TaskCheck -- "Có" --> SaveLocal[Lưu Task vào SQLite local, gán isSynced = 0]
+    SaveLocal --> NetworkCheck{Có mạng Internet?}
+    
+    NetworkCheck -- "Có" --> SaveRemote[Đẩy Task lên Firestore & đặt isSynced = 1]
+    SaveRemote --> Done([Hoàn thành, Task hiển thị trong danh sách])
+    
+    NetworkCheck -- "Không" --> KeepOffline[Giữ Task ngoại tuyến trong SQLite local]
+    KeepOffline --> Done
+
+    style Start fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px
+    style ErrorMsg fill:#fef2f2,stroke:#dc2626,stroke-width:1.5px
+    style Done fill:#ecfdf5,stroke:#059669,stroke-width:1.5px
+```
+
+---
+
+### 16. Activity Diagram - Member Update Task Status (Sơ đồ hoạt động Thành viên cập nhật trạng thái)
+
+Sơ đồ hoạt động diễn tả luồng chuyển đổi trạng thái công việc của Member được phân công:
+
+```mermaid
+flowchart TD
+    Start([Bắt đầu]) --> OpenTask[Member: Xem chi tiết nhiệm vụ]
+    OpenTask --> AuthCheck{Task được giao cho Member hiện tại?}
+    
+    AuthCheck -- "Không" --> ViewOnly[Chỉ hiển thị chi tiết, ẩn toàn bộ nút hành động]
+    ViewOnly --> Finish([Kết thúc])
+    
+    AuthCheck -- "Có" --> StateCheck{Trạng thái hiện tại?}
+    
+    StateCheck -- "TODO" --> ShowBtnDoing[Hiển thị nút BẮT ĐẦU LÀM]
+    ShowBtnDoing --> ClickDoing[Click bắt đầu làm]
+    ClickDoing --> TransitionDoing{Chuyển trạng thái sang DOING}
+    
+    StateCheck -- "DOING" --> ShowBtnReview[Hiển thị nút GỬI DUYỆT]
+    ShowBtnReview --> ClickReview[Click gửi duyệt]
+    ClickReview --> TransitionReview{Chuyển trạng thái sang REVIEWING}
+    
+    TransitionDoing & TransitionReview --> SaveLocal[Ghi trạng thái mới vào SQLite & gán isSynced = 0]
+    SaveLocal --> NetworkCheck{Có mạng Internet?}
+    
+    NetworkCheck -- "Có" --> SaveRemote[Cập nhật Firestore & đặt isSynced = 1]
+    SaveRemote --> Finish
+    
+    NetworkCheck -- "Không" --> KeepOffline[Giữ trạng thái chờ đồng bộ trong SQLite local]
+    KeepOffline --> Finish
+
+    style Start fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px
+    style Finish fill:#ecfdf5,stroke:#059669,stroke-width:1.5px
+```
+
+---
+
+### 17. Activity Diagram - Manager Approve/Reject Task (Sơ đồ hoạt động phê duyệt/từ chối của quản lý)
+
+Sơ đồ hoạt động miêu tả quy trình Manager kiểm định và đưa ra quyết định phê duyệt hay trả lại nhiệm vụ:
+
+```mermaid
+flowchart TD
+    Start([Bắt đầu]) --> OpenTask[Manager: Mở task có trạng thái REVIEWING]
+    OpenTask --> ReviewDecision{Quyết định phê duyệt}
+    
+    ReviewDecision -- "Duyệt (Approve)" --> ClickApprove[Click DUYỆT]
+    ClickApprove --> AppTransition[Cập nhật status = done và xóa lý do từ chối cũ]
+    
+    ReviewDecision -- "Từ chối (Reject)" --> ClickReject[Click Từ chối]
+    ClickReject --> InputReason[Hiển thị Dialog và nhập lý do từ chối]
+    InputReason --> RejTransition[Cập nhật status = todo và ghi nhận lý do vào rejectionReason]
+    
+    AppTransition & RejTransition --> SaveLocal[Ghi thay đổi vào SQLite local & gán isSynced = 0]
+    SaveLocal --> NetworkCheck{Có mạng Internet?}
+    
+    NetworkCheck -- "Có" --> SaveRemote[Cập nhật Firestore & đặt isSynced = 1]
+    SaveRemote --> FirestoreChanged[Firestore task thay đổi]
+    FirestoreChanged --> NotifyListen[NotificationProvider lắng nghe snapshot]
+    NotifyListen --> NotifyLocal[Tạo notification local trong SQLite]
+    NotifyLocal --> Finish([Hoàn tất])
+    
+    NetworkCheck -- "Không" --> KeepOffline[Giữ thay đổi trong SQLite cục bộ]
+    KeepOffline --> Finish
+
+    style Start fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px
+    style Finish fill:#ecfdf5,stroke:#059669,stroke-width:1.5px
+```
+
+---
+
+### 18. Sequence Diagram - Offline Sync (Sơ đồ tuần tự - Cơ chế đồng bộ dữ liệu ngoại tuyến)
+
+Sơ đồ mô tả trình tự tương tác giữa giao diện ứng dụng, các providers, SQLite local, và Cloud Firestore khi thực hiện ghi dữ liệu ngoại tuyến và tự động đẩy đồng bộ khi thiết bị khôi phục kết nối mạng:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Mgr as Manager / Member
+    participant UI as Giao diện (UI)
+    participant Conn as ConnectivityProvider
+    participant TaskProv as TaskProvider
+    participant TaskRepo as TaskRepositoryImpl
+    participant SQLite as SQLiteService
+    participant Firebase as FirebaseService
+    participant Cloud as Cloud Firestore
+
+    Note over Mgr, Cloud: Thiết bị mất mạng (Offline Mode)
+    Mgr->>UI: Thực hiện chỉnh sửa / cập nhật Task
+    UI->>TaskProv: editTask(updatedTask)
+    TaskProv->>TaskRepo: updateTask(updatedTask)
+    TaskRepo->>SQLite: cacheTask(updatedTask, isSynced: false)
+    SQLite-->>TaskRepo: Ghi SQLite thành công (isSynced = 0)
+    TaskRepo-->>TaskProv: Trả về kết quả
+    TaskProv-->>UI: Cập nhật UI ngay lập tức (Optimistic UI)
+    UI-->>Mgr: Hiển thị trạng thái cập nhật (đính kèm biểu tượng chờ đồng bộ)
+
+    Note over Mgr, Cloud: Thiết bị khôi phục kết nối mạng (Back Online)
+    Conn->>TaskProv: onBackOnline callback kích hoạt
+    TaskProv->>TaskRepo: syncPendingTasks()
+    TaskRepo->>SQLite: getUnsyncedTasks()
+    SQLite-->>TaskRepo: Trả về danh sách Task có isSynced = 0
+    
+    loop Duyệt qua từng Task chưa đồng bộ
+        TaskRepo->>Firebase: saveTask(task)
+        Firebase->>Cloud: Lưu trữ dữ liệu tài liệu
+        Cloud-->>Firebase: Lưu thành công
+        Firebase-->>TaskRepo: Trả về kết quả
+        TaskRepo->>SQLite: markTaskSynced(task.id)
+        SQLite-->>TaskRepo: Đánh dấu isSynced = 1 thành công
+    end
+    
+    TaskRepo-->>TaskProv: Đồng bộ hoàn tất
+    TaskProv-->>UI: notifyListeners()
+    opt Màn hình hiện tại có context truy vấn
+        UI->>TaskProv: Yêu cầu reload dữ liệu hiện tại
+        TaskProv->>TaskProv: Reload dữ liệu theo màn hình hiện tại
+        TaskProv->>TaskRepo: loadTasksByProject / loadMyTasks / loadAllTasks
+        TaskRepo->>Firebase: Truy vấn Firestore theo quyền và ngữ cảnh
+        Firebase->>Cloud: Đọc dữ liệu mới nhất
+        Cloud-->>Firebase: Trả về dữ liệu
+        Firebase-->>TaskRepo: Trả về dữ liệu
+        TaskRepo->>SQLite: Giải quyết xung đột & lưu cache
+        SQLite-->>TaskRepo: Lưu cache thành công
+        TaskRepo-->>TaskProv: Trả về danh sách đã gộp
+        TaskProv->>UI: notifyListeners()
+    end
+    UI-->>Mgr: Giao diện cập nhật khi dữ liệu được reload
 ```

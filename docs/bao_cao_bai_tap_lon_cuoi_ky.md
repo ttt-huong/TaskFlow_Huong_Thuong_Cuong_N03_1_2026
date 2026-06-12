@@ -4,8 +4,8 @@
 
 **Thành viên thực hiện (Nhóm N03):** 
 1. Trần Thị Thu Hường
-2. [Họ tên thành viên 2] (Thương)
-3. [Họ tên thành viên 3] (Cường)
+2. Nguyễn Thị Thương
+3. Nguyễn Việt Cường
 
 ---
 
@@ -136,14 +136,14 @@ erDiagram
 #### 4.2. Luồng Vận Động Dữ Liệu & Đồng Bộ Offline-First
 
 ##### 4.2.1. Đồng bộ xuôi (Downstream - Firestore to SQLite)
-1. Ứng dụng khởi động và lắng nghe các collections `tasks` và `projects` từ Firebase.
+1. Khi người dùng mở các màn hình liên quan, Repository tải dữ liệu `tasks` và `projects` từ Firestore theo quyền truy cập hiện tại rồi lưu về SQLite. Riêng `NotificationProvider` lắng nghe realtime stream của collection `tasks` để phát hiện sự kiện tạo thông báo.
 2. Khi nhận dữ liệu từ Firestore, Repository kiểm tra thời điểm cập nhật `updatedAt` và cờ trạng thái `isSynced` của bản ghi local trước khi ghi đè để bảo vệ các thay đổi ngoại tuyến chưa kịp đồng bộ:
-   - **Quy tắc bảo vệ**: Nếu bản ghi local đang có `isSynced = 0` (chờ đồng bộ) và có thời gian `updatedAt` mới hơn (hoặc bằng) dữ liệu nhận từ máy chủ, Repository sẽ **giữ lại bản ghi local** và bỏ qua việc ghi đè từ server.
+   - **Quy tắc bảo vệ**: Nếu bản ghi local đang có `isSynced = 0` (chờ đồng bộ) và có thời gian `updatedAt` mới hơn dữ liệu nhận từ máy chủ, Repository sẽ **giữ lại bản ghi local** và bỏ qua việc ghi đè từ server.
    - Ngược lại, dữ liệu từ server sẽ được lưu đè vào SQLite và cập nhật `isSynced = 1`.
-3. Đối với thông báo, hệ thống tiến hành kiểm tra chống trùng dựa trên bộ ba `(userId, relatedTaskId, type)`. Nếu không trùng, thông báo mới sẽ được ghi vào `notifications_local`.
+3. Đối với thông báo, snapshot đầu tiên chỉ được dùng để tạo baseline `previousTasks`, không tạo thông báo cho dữ liệu cũ. Từ các snapshot tiếp theo, hệ thống kiểm tra thay đổi trạng thái/gán việc hợp lệ và chống trùng dựa trên bộ ba `(userId, relatedTaskId, type)` trước khi ghi thông báo mới vào `notifications_local`.
 
 ##### 4.2.2. Đồng bộ ngược (Upstream - SQLite to Firestore)
-1. Khi không có mạng (Offline), người dùng tạo dự án hoặc cập nhật trạng thái nhiệm vụ.
+1. Khi không có mạng (Offline), người dùng có thể tạo/cập nhật dự án hoặc tạo/cập nhật trạng thái nhiệm vụ trong phạm vi chức năng được ứng dụng hỗ trợ.
 2. Hệ thống ghi dữ liệu vào SQLite, gán thời gian `updatedAt = DateTime.now()` và đánh dấu cờ trạng thái đồng bộ `isSynced = 0`.
 3. Khi thiết bị khôi phục kết nối Internet:
    - `ConnectivityProvider` kích hoạt hàm `syncPending()`.
@@ -951,6 +951,10 @@ erDiagram
         string description
         array memberIds "Mảng các UID thành viên"
         string updatedAt "string (ISO 8601 UTC)"
+        int todoCount
+        int doingCount
+        int doneCount
+        double progress
     }
 
     tasks_firestore {
@@ -994,7 +998,11 @@ erDiagram
       "name": "Dự án Thiết Kế Website",
       "description": "Xây dựng website bán hàng chuẩn SEO",
       "memberIds": ["uid_1", "uid_2", "uid_3"],
-      "updatedAt": "2026-06-12T00:15:30.000Z"
+      "updatedAt": "2026-06-12T00:15:30.000Z",
+      "todoCount": 0,
+      "doingCount": 0,
+      "doneCount": 0,
+      "progress": 0.0
     }
     ```
 
@@ -1052,18 +1060,15 @@ service cloud.firestore {
     }
 
     function isManager() {
-      return isAuthenticated() && (
-        getUserData().role == 'manager' || 
-        request.auth.token.email == 'manager@gmail.com'
-      );
+      return isAuthenticated() && getUserData().role == 'manager';
     }
 
     function isUserProjectMember(projectId, userId) {
-      return isAuthenticated() && 
-        projectId != null &&
-        userId != null &&
-        exists(/databases/$(database)/documents/projects/$(projectId)) &&
-        (userId in get(/databases/$(database)/documents/projects/$(projectId)).data.memberIds);
+      return isAuthenticated()
+        && projectId is string
+        && userId is string
+        && exists(/databases/$(database)/documents/projects/$(projectId))
+        && userId in get(/databases/$(database)/documents/projects/$(projectId)).data.memberIds;
     }
 
     function isProjectMember(projectId) {
@@ -1072,38 +1077,65 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && request.auth.uid == userId;
+
+      allow create: if isAuthenticated()
+        && request.auth.uid == userId;
+
+      allow update: if isAuthenticated()
+        && request.auth.uid == userId
+        && request.resource.data.role == resource.data.role;
+
+      allow delete: if false;
     }
 
     match /projects/{projectId} {
-      allow read: if isAuthenticated() && (
-        isManager() || (resource != null && request.auth.uid in resource.data.memberIds)
-      );
-      allow write: if isManager();
+      allow read: if isAuthenticated()
+        && (
+          isManager()
+          || request.auth.uid in resource.data.memberIds
+        );
+
+      allow create, update, delete: if isManager();
     }
 
     match /tasks/{taskId} {
-      allow read: if isAuthenticated() && (
-        isManager() || 
-        isProjectMember(resource.data.projectId) || 
-        ('projectId' in request.query && isProjectMember(request.query.projectId))
-      );
+      allow read: if isAuthenticated()
+        && (
+          isManager()
+          || resource.data.assignedTo == request.auth.uid
+          || isProjectMember(resource.data.projectId)
+        );
 
       allow create: if isManager()
         && request.resource.data.projectId is string
-        && isUserProjectMember(request.resource.data.projectId, request.resource.data.assignedTo);
+        && request.resource.data.assignedTo is string
+        && isUserProjectMember(
+          request.resource.data.projectId,
+          request.resource.data.assignedTo
+        );
 
-      allow update: if isAuthenticated() && (
-        (isManager() && isUserProjectMember(request.resource.data.projectId, request.resource.data.assignedTo)) ||
-        (
-          resource.data.assignedTo == request.auth.uid &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+      allow update: if isAuthenticated()
+        && (
           (
-            (resource.data.status == 'todo' && request.resource.data.status == 'doing') ||
-            (resource.data.status == 'doing' && request.resource.data.status == 'reviewing')
+            isManager()
+            && request.resource.data.projectId is string
+            && request.resource.data.assignedTo is string
+            && isUserProjectMember(
+              request.resource.data.projectId,
+              request.resource.data.assignedTo
+            )
           )
-        )
-      );
+          ||
+          (
+            resource.data.assignedTo == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && (
+              (resource.data.status == 'todo' && request.resource.data.status == 'doing')
+              ||
+              (resource.data.status == 'doing' && request.resource.data.status == 'reviewing')
+            )
+          )
+        );
 
       allow delete: if isManager();
     }
@@ -1144,8 +1176,68 @@ testWidgets('A2. Member sees 3 tabs and NO FAB on MainScreen', (WidgetTester tes
 ```
 
 * **Xác nhận kết quả chạy Test:**
-  Chạy lệnh `flutter test` xác nhận bộ kiểm thử bao phủ toàn bộ chức năng (Lịch biểu, Phân quyền, Đồng bộ ngoại tuyến, Giao diện chính) và cho kết quả tuyệt đối:
-  `All tests passed! (69/69 tests passed successfully)`
+  Chạy lệnh `flutter test` xác nhận bộ kiểm thử bao phủ các nhóm chức năng chính như Lịch biểu, Phân quyền, Đồng bộ ngoại tuyến và Giao diện chính. Kết quả kiểm thử cuối cùng:
+  `00:48 +73: All tests passed!`
+
+---
+
+## PHẦN VII: HƯỚNG PHÁT TRIỂN HỆ THỐNG
+
+Nhằm nâng cấp ứng dụng **TaskFlow** từ một sản phẩm ở mức đồ án môn học thành một giải pháp quản lý công việc và dự án chuyên nghiệp, có khả năng mở rộng mạnh mẽ và đáp ứng tốt nhu cầu thực tế của các doanh nghiệp, hệ thống được định hướng phát triển theo lộ trình (Roadmap) gồm 10 mục tiêu chiến lược sau:
+
+### 1. Mô hình quản lý đa dự án (Multi-Project Manager)
+* **Hiện trạng:** Hệ thống hiện sử dụng mô hình **Manager toàn cục (Global Manager)**. Một tài khoản Manager có thể tạo và quản lý nhiều dự án, mỗi dự án có danh sách thành viên và danh sách nhiệm vụ riêng.
+* **Hướng phát triển:** Mở rộng sang mô hình **Project Manager**, trong đó quyền quản lý được gắn theo từng dự án thay vì mặc định toàn cục. Mô hình mục tiêu là `1 Manager -> N Projects -> N Members`, cho phép một tài khoản quản lý nhiều dự án độc lập với các nhóm thành viên khác nhau.
+  * *Ví dụ thực tế:* Manager Duy có thể quản lý song song *Dự án A* (gồm các thành viên Thương, Duy) và *Dự án B* (gồm các thành viên Hường, Cường, Thương, Duy) trên cùng một tài khoản.
+
+### 2. Hỗ trợ nhiều tài khoản quản lý (Multiple Managers)
+* **Hiện trạng:** Hệ thống có phân quyền `manager` và `member`, nhưng chưa chuẩn hóa đầy đủ quyền sở hữu dự án theo từng Manager trong dữ liệu.
+* **Hướng phát triển:** Hỗ trợ nhiều tài khoản Manager đồng thời. Mỗi Manager quản lý một tập dự án riêng biệt, hoặc cùng tham gia đồng quản trị (Co-managing) trong một dự án chung khi cần.
+
+### 3. Ràng buộc phụ thuộc nhiệm vụ (Task Dependency)
+* **Hiện trạng:** Các nhiệm vụ được thực hiện độc lập, chưa kiểm soát được trình tự và mối liên hệ giữa các đầu việc.
+* **Hướng phát triển:** Tích hợp tính năng thiết lập ràng buộc phụ thuộc (Task Dependency). Một nhiệm vụ chỉ được phép bắt đầu (chuyển sang trạng thái `doing`) khi và chỉ khi tất cả các nhiệm vụ tiền nhiệm (predecessors) của nó đã được phê duyệt hoàn thành (`done`).
+  * *Ví dụ thực tế:* Thiết lập chuỗi công việc: *Task A (Thiết kế UI)* -> *Task B (Code UI)* -> *Task C (Test UI)*. Thành viên chỉ được mở khóa và nhận *Task B* khi Manager đã duyệt hoàn thành *Task A*.
+
+### 4. Chia nhỏ nhiệm vụ (Subtask)
+* **Hiện trạng:** Một nhiệm vụ trong hệ thống là một khối công việc đơn nhất, khó theo dõi chi tiết các bước triển khai nhỏ hơn.
+* **Hướng phát triển:** Hỗ trợ mô hình nhiệm vụ con (Subtask) tương tự các công cụ quản lý chuyên nghiệp (Jira, Trello, ClickUp). Một nhiệm vụ lớn (Parent Task) như "Xây dựng màn hình Login" sẽ được phân rã thành nhiều nhiệm vụ con như:
+  * Thiết kế UI màn hình
+  * Code giao diện Flutter
+  * Viết logic Validate Form
+  * Kiểm thử đơn vị (Unit Test)
+  * *Ràng buộc:* Nhiệm vụ cha chỉ được tự động chuyển sang trạng thái hoàn thành khi toàn bộ các nhiệm vụ con bên trong đã được hoàn tất.
+
+### 5. Chế độ tối và tùy biến giao diện (Dark Mode & Theme Switching)
+* **Hiện trạng:** Chức năng Dark Mode chưa được triển khai hoàn chỉnh. Ứng dụng hiện chủ yếu sử dụng giao diện sáng (Light Mode) dựa trên ngôn ngữ thiết kế Glassmorphism.
+* **Hướng phát triển:** Triển khai tính năng Chế độ tối (Dark Mode) hoàn chỉnh, cho phép chuyển đổi giao diện linh hoạt giữa Sáng/Tối (Theme Switching) hoặc tự động nhận diện thiết lập giao diện của hệ điều hành (System Theme Detection) để tối ưu hóa trải nghiệm thị giác người dùng trong điều kiện thiếu sáng và tiết kiệm năng lượng cho thiết bị.
+
+### 6. Thông báo đẩy nâng cao (Firebase Cloud Messaging)
+* **Hiện trạng:** Hệ thống thông báo hiện tại hoạt động dựa trên cơ chế lắng nghe Firestore stream cục bộ khi ứng dụng đang mở (Foreground) và lưu trữ thông báo vào SQLite cục bộ.
+* **Hướng phát triển:** Tích hợp Firebase Cloud Messaging (FCM), Push Notification, Background Notification và Notification Sync Multi-Device. Khi đó người dùng vẫn nhận được thông báo khi ứng dụng chạy nền hoặc đã đóng, đồng thời trạng thái đã đọc có thể đồng bộ giữa nhiều thiết bị.
+
+### 7. Bảng điều khiển phân tích chuyên sâu (Advanced Statistics Dashboard)
+* **Hiện trạng:** Thống kê của hệ thống mới dừng lại ở việc biểu diễn số lượng Task theo các trạng thái cơ bản (Todo, Doing, Done) và hiển thị phần trăm tiến độ tổng quan.
+* **Hướng phát triển:** Tích hợp các biểu đồ quản trị nâng cao và chuyên sâu của phương pháp Agile/Scrum:
+  * *Burn-down Chart:* Biểu đồ theo dõi tiến độ thời gian thực để dự báo khả năng hoàn thành dự án đúng hạn.
+  * *Velocity Chart:* Biểu đồ đo lường tốc độ và năng suất hoàn thành công việc qua từng chu kỳ.
+  * *Productivity Score & Team Performance Dashboard:* Bảng chấm điểm hiệu suất và trực quan hóa năng lực cống hiến của từng thành viên trong nhóm.
+
+### 8. Chuẩn hóa quan hệ Nhiều - Nhiều bằng bảng trung gian (Project Member Mapping Table)
+* **Hiện trạng:** Hệ thống đang lưu danh sách ID thành viên dự án dưới dạng chuỗi CSV (`memberIds`) cách nhau bởi dấu phẩy trong bảng `projects_local` nhằm đơn giản hóa cấu trúc offline.
+* **Hướng phát triển:** Chuẩn hóa cơ sở dữ liệu SQLite và Firestore bằng cách chuyển đổi sang sử dụng bảng trung gian `project_members` chứa các trường: `projectId`, `userId`, `role`.
+  * *Lợi ích:* Đảm bảo tính toàn vẹn dữ liệu ở dạng chuẩn hóa (Normalized Form), tăng tốc độ truy vấn cơ sở dữ liệu SQLite khi dự án phình to, và hỗ trợ thiết lập quyền hạn chi tiết cho từng người dùng trong từng dự án cụ thể (ví dụ: User X là Manager của Dự án A nhưng chỉ là Member của Dự án B).
+
+### 9. Cơ chế giải quyết xung đột nâng cao (Advanced Conflict Resolution)
+* **Hiện trạng:** Đang áp dụng cơ chế giải quyết xung đột dựa trên nhãn thời gian cập nhật cuối cùng (`updatedAt` Timestamp Comparison) để tự động ghi đè dữ liệu mới nhất.
+* **Hướng phát triển:** Xây dựng cơ chế giải quyết xung đột thông minh và tương tác trực quan:
+  * Cho phép người dùng xem và so sánh sự khác biệt (Diff View) giữa hai phiên bản dữ liệu khi phát hiện xung đột lúc có mạng trở lại.
+  * Hỗ trợ tự động gộp các trường dữ liệu không chồng chéo (Auto-Merge).
+  * Cho phép người dùng thủ công lựa chọn giữ lại dữ liệu máy chủ hoặc đè dữ liệu cục bộ (User-Driven Choice).
+
+### 10. Đồng bộ hóa trạng thái đa thiết bị (Multi-Device Synchronization)
+* **Hiện trạng:** Hệ thống tối ưu hóa đồng bộ dữ liệu giữa thiết bị hiện tại và Firestore.
+* **Hướng phát triển:** Xây dựng cơ chế đồng bộ trạng thái ứng dụng đồng thời trên nhiều thiết bị của cùng một tài khoản đăng nhập (ví dụ: máy tính bảng và điện thoại di động). Đảm bảo khi người dùng cập nhật công việc trên thiết bị A, thiết bị B ngay lập tức nhận được tín hiệu qua stream và cập nhật bộ đệm SQLite nội bộ mà không xảy ra xung đột hay mất mát dữ liệu.
 
 ---
 
@@ -1162,4 +1254,3 @@ Dưới đây là một số hạn chế kỹ thuật hiện tại ghi nhận tr
 * **Hướng phát triển tương lai:** 
   * *Cách 1:* Thực hiện một Transaction ghi hàng loạt (Firestore Batch Write) cập nhật toàn bộ `assigneeName` và `assigneeAvatar` trên mọi Task liên quan khi người dùng thay đổi thông tin.
   * *Cách 2:* Tách biệt thông tin người dùng khỏi đối tượng Task. Lưu trữ danh sách User trong cache SQLite cục bộ (`users_cache_local`) và ánh xạ động thông qua `assignedTo` ID khi hiển thị giao diện, giúp dữ liệu luôn nhất quán mà vẫn hỗ trợ chế độ ngoại tuyến.
-

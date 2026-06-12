@@ -191,6 +191,10 @@ erDiagram
         string description
         array memberIds "Mảng các UID thành viên"
         string updatedAt "string (ISO 8601 UTC)"
+        int todoCount
+        int doingCount
+        int doneCount
+        double progress
     }
 
     tasks_firestore {
@@ -234,7 +238,11 @@ erDiagram
       "name": "Dự án Thiết Kế Website",
       "description": "Xây dựng website bán hàng chuẩn SEO",
       "memberIds": ["uid_1", "uid_2", "uid_3"],
-      "updatedAt": "2026-06-12T00:15:30.000Z"
+      "updatedAt": "2026-06-12T00:15:30.000Z",
+      "todoCount": 0,
+      "doingCount": 0,
+      "doneCount": 0,
+      "progress": 0.0
     }
     ```
 
@@ -277,14 +285,14 @@ erDiagram
 ## 5. Luồng Vận Động Dữ Liệu & Đồng Bộ Offline-First
 
 ### 5.1. Đồng bộ xuôi (Downstream - Firestore to SQLite)
-1. Ứng dụng khởi động và lắng nghe các collections `tasks` và `projects` từ Firebase.
+1. Khi người dùng mở các màn hình liên quan, Repository tải dữ liệu `tasks` và `projects` từ Firestore theo quyền truy cập hiện tại rồi lưu về SQLite. Riêng `NotificationProvider` lắng nghe realtime stream của collection `tasks` để phát hiện sự kiện tạo thông báo.
 2. Khi nhận dữ liệu từ Firestore, Repository kiểm tra thời điểm cập nhật `updatedAt` và cờ trạng thái `isSynced` của bản ghi local trước khi ghi đè để bảo vệ các thay đổi ngoại tuyến chưa kịp đồng bộ:
-   - **Quy tắc bảo vệ**: Nếu bản ghi local đang có `isSynced = 0` (chờ đồng bộ) và có thời gian `updatedAt` mới hơn (hoặc bằng) dữ liệu nhận từ máy chủ, Repository sẽ **giữ lại bản ghi local** và bỏ qua việc ghi đè từ server.
+   - **Quy tắc bảo vệ**: Nếu bản ghi local đang có `isSynced = 0` (chờ đồng bộ) và có thời gian `updatedAt` mới hơn dữ liệu nhận từ máy chủ, Repository sẽ **giữ lại bản ghi local** và bỏ qua việc ghi đè từ server.
    - Ngược lại, dữ liệu từ server sẽ được lưu đè vào SQLite và cập nhật `isSynced = 1`.
-3. Đối với thông báo, hệ thống tiến hành kiểm tra chống trùng dựa trên bộ ba `(userId, relatedTaskId, type)`. Nếu không trùng, thông báo mới sẽ được ghi vào `notifications_local`.
+3. Đối với thông báo, snapshot đầu tiên chỉ được dùng để tạo baseline `previousTasks`, không tạo thông báo cho dữ liệu cũ. Từ các snapshot tiếp theo, hệ thống kiểm tra thay đổi trạng thái/gán việc hợp lệ và chống trùng dựa trên bộ ba `(userId, relatedTaskId, type)` trước khi ghi thông báo mới vào `notifications_local`.
 
 ### 5.2. Đồng bộ ngược (Upstream - SQLite to Firestore)
-1. Khi không có mạng (Offline), người dùng tạo dự án hoặc cập nhật trạng thái nhiệm vụ.
+1. Khi không có mạng (Offline), người dùng có thể tạo/cập nhật dự án hoặc tạo/cập nhật trạng thái nhiệm vụ trong phạm vi chức năng được ứng dụng hỗ trợ.
 2. Hệ thống ghi dữ liệu vào SQLite, gán thời gian `updatedAt = DateTime.now()` và đánh dấu cờ trạng thái đồng bộ `isSynced = 0`.
 3. Khi thiết bị khôi phục kết nối Internet:
    - `ConnectivityProvider` kích hoạt hàm `syncPending()`.
@@ -318,18 +326,15 @@ service cloud.firestore {
     }
 
     function isManager() {
-      return isAuthenticated() && (
-        getUserData().role == 'manager' || 
-        request.auth.token.email == 'manager@gmail.com'
-      );
+      return isAuthenticated() && getUserData().role == 'manager';
     }
 
     function isUserProjectMember(projectId, userId) {
-      return isAuthenticated() && 
-        projectId != null &&
-        userId != null &&
-        exists(/databases/$(database)/documents/projects/$(projectId)) &&
-        (userId in get(/databases/$(database)/documents/projects/$(projectId)).data.memberIds);
+      return isAuthenticated()
+        && projectId is string
+        && userId is string
+        && exists(/databases/$(database)/documents/projects/$(projectId))
+        && userId in get(/databases/$(database)/documents/projects/$(projectId)).data.memberIds;
     }
 
     function isProjectMember(projectId) {
@@ -338,38 +343,65 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && request.auth.uid == userId;
+
+      allow create: if isAuthenticated()
+        && request.auth.uid == userId;
+
+      allow update: if isAuthenticated()
+        && request.auth.uid == userId
+        && request.resource.data.role == resource.data.role;
+
+      allow delete: if false;
     }
 
     match /projects/{projectId} {
-      allow read: if isAuthenticated() && (
-        isManager() || (resource != null && request.auth.uid in resource.data.memberIds)
-      );
-      allow write: if isManager();
+      allow read: if isAuthenticated()
+        && (
+          isManager()
+          || request.auth.uid in resource.data.memberIds
+        );
+
+      allow create, update, delete: if isManager();
     }
 
     match /tasks/{taskId} {
-      allow read: if isAuthenticated() && (
-        isManager() || 
-        isProjectMember(resource.data.projectId) || 
-        ('projectId' in request.query && isProjectMember(request.query.projectId))
-      );
+      allow read: if isAuthenticated()
+        && (
+          isManager()
+          || resource.data.assignedTo == request.auth.uid
+          || isProjectMember(resource.data.projectId)
+        );
 
       allow create: if isManager()
         && request.resource.data.projectId is string
-        && isUserProjectMember(request.resource.data.projectId, request.resource.data.assignedTo);
+        && request.resource.data.assignedTo is string
+        && isUserProjectMember(
+          request.resource.data.projectId,
+          request.resource.data.assignedTo
+        );
 
-      allow update: if isAuthenticated() && (
-        (isManager() && isUserProjectMember(request.resource.data.projectId, request.resource.data.assignedTo)) ||
-        (
-          resource.data.assignedTo == request.auth.uid &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+      allow update: if isAuthenticated()
+        && (
           (
-            (resource.data.status == 'todo' && request.resource.data.status == 'doing') ||
-            (resource.data.status == 'doing' && request.resource.data.status == 'reviewing')
+            isManager()
+            && request.resource.data.projectId is string
+            && request.resource.data.assignedTo is string
+            && isUserProjectMember(
+              request.resource.data.projectId,
+              request.resource.data.assignedTo
+            )
           )
-        )
-      );
+          ||
+          (
+            resource.data.assignedTo == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && (
+              (resource.data.status == 'todo' && request.resource.data.status == 'doing')
+              ||
+              (resource.data.status == 'doing' && request.resource.data.status == 'reviewing')
+            )
+          )
+        );
 
       allow delete: if isManager();
     }
