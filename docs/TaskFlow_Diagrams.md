@@ -148,3 +148,149 @@ flowchart TD
     style MemSubmit fill:#f0fdf4,stroke:#16a34a,stroke-width:1.5px
     style MemNotifyRej fill:#fef2f2,stroke:#dc2626,stroke-width:1.5px
 ```
+
+---
+
+## II. KIẾN TRÚC HỆ THỐNG
+
+### 4. Architecture Diagram (Sơ đồ kiến trúc phân tầng)
+
+Sơ đồ thể hiện luồng dữ liệu và trách nhiệm của từng tầng trong kiến trúc ứng dụng (UI $\rightarrow$ Provider $\rightarrow$ Repository $\rightarrow$ Service $\rightarrow$ Databases):
+
+```mermaid
+flowchart TD
+    subgraph UI_Layer ["Tầng Giao Diện (UI Layer)"]
+        Screens["Giao diện (Screens)<br>widgets/ | screens/"]
+    end
+
+    subgraph State_Layer ["Tầng Quản Lý Trạng Thái (State Provider Layer)"]
+        Providers["Providers<br>(ChangeNotifier / ProxyProvider)"]
+    end
+
+    subgraph Repos_Layer ["Tầng Nghiệp Vụ & Dữ Liệu (Repository Layer)"]
+        Repositories["Repositories<br>(ProjectRepository / TaskRepository)"]
+    end
+
+    subgraph Service_Layer ["Tầng Dịch Vụ Hạ Tầng (Service Layer)"]
+        SQLiteService["SQLiteService (Local Data Cache)"]
+        FirebaseService["FirebaseService (Remote Data Sync)"]
+        ConnectivityService["ConnectivityService (Network Status)"]
+    end
+
+    subgraph Persistence_Layer ["Tầng Lưu Trữ (Persistence Storage Layer)"]
+        LocalDB[("Local DB (SQLite)")]
+        RemoteDB[("Cloud Firestore & Auth")]
+    end
+
+    Screens --> |Gọi các hàm và lắng nghe trạng thái| Providers
+    Providers --> |Gọi logic xử lý dữ liệu| Repositories
+    Repositories --> |Đọc/Ghi dữ liệu local/remote| SQLiteService
+    Repositories --> |Đọc/Ghi dữ liệu local/remote| FirebaseService
+    Repositories -.-> |Kiểm tra trạng thái mạng| ConnectivityService
+    SQLiteService --> |Lưu trữ dữ liệu ngoại tuyến| LocalDB
+    FirebaseService --> |Lưu trữ dữ liệu trực tuyến| RemoteDB
+
+    %% CSS Styling
+    style UI_Layer fill:#f8fafc,stroke:#334155,stroke-width:1.5px
+    style State_Layer fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px
+    style Repos_Layer fill:#ecfdf5,stroke:#059669,stroke-width:1.5px
+    style Service_Layer fill:#fffbeb,stroke:#d97706,stroke-width:1.5px
+    style Persistence_Layer fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px
+```
+
+---
+
+### 5. Package Diagram (Sơ đồ Gói)
+
+Sơ đồ gói biểu diễn mối quan hệ phụ thuộc giữa các thư mục/gói cấu trúc mã nguồn trong ứng dụng:
+
+```mermaid
+flowchart TB
+    screens["📂 screens (Giao diện ứng dụng)"]
+    providers["📂 providers (Quản lý trạng thái & UI logic)"]
+    repositories["📂 repositories (Tầng trừu tượng dữ liệu)"]
+    services["📂 services (Kết nối SQLite / Firebase)"]
+    models["📂 models (Đối tượng dữ liệu / Thực thể)"]
+
+    screens --> |import| providers
+    screens --> |import| models
+    providers --> |import| repositories
+    providers --> |import| models
+    repositories --> |import| services
+    repositories --> |import| models
+    services --> |import| models
+
+    style screens fill:#f8fafc,stroke:#64748b,stroke-width:1.5px
+    style providers fill:#eef2ff,stroke:#4f46e5,stroke-width:1.5px
+    style repositories fill:#ecfdf5,stroke:#059669,stroke-width:1.5px
+    style services fill:#fffbeb,stroke:#d97706,stroke-width:1.5px
+    style models fill:#fff5f5,stroke:#e11d48,stroke-width:1.5px
+```
+
+---
+
+### 6. Component Diagram (Sơ đồ thành phần)
+
+Sơ đồ biểu diễn các thành phần nghiệp vụ và kỹ thuật cốt lõi tương tác với nhau trong hệ thống:
+
+```mermaid
+flowchart LR
+    subgraph CoreComponents ["Thành phần cốt lõi (Core Components)"]
+        Auth["Xác thực (Authentication)"]
+        Project["Quản lý Dự án (Project)"]
+        Task["Quản lý Công việc (Task)"]
+        Notify["Thông báo (Notification)"]
+        Stats["Thống kê (Statistics)"]
+        OfflineSync["Đồng bộ ngoại tuyến (Offline Sync)"]
+    end
+
+    Auth --> |Cung cấp thông tin User| Project
+    Auth --> |Cung cấp thông tin User| Task
+    Project --> |Chứa danh sách| Task
+    Task --> |Kích hoạt| Notify
+    Task --> |Cung cấp dữ liệu nguồn| Stats
+    OfflineSync --> |Đồng bộ hai chiều dữ liệu| Project
+    OfflineSync --> |Đồng bộ hai chiều dữ liệu| Task
+
+    style Auth fill:#eef2ff,stroke:#4f46e5,stroke-width:1.5px
+    style Project fill:#ecfdf5,stroke:#059669,stroke-width:1.5px
+    style Task fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px
+    style Notify fill:#fdf2f8,stroke:#db2777,stroke-width:1.5px
+    style Stats fill:#fffbeb,stroke:#d97706,stroke-width:1.5px
+    style OfflineSync fill:#fef2f2,stroke:#dc2626,stroke-width:1.5px
+```
+
+---
+
+### 7. Deployment Diagram (Sơ đồ triển khai vật lý)
+
+Sơ đồ phân bố vật lý của các môi trường ứng dụng chạy ở client và lưu trữ đám mây phía server:
+
+```mermaid
+flowchart TD
+    subgraph ClientNode ["Thiết bị khách hàng (Client Node)"]
+        AndroidDevice["Thiết bị di động Android<br>(Android OS 21+)"]
+        subgraph AppRuntime ["Môi trường chạy App (TaskFlow App)"]
+            FlutterApp["Ứng dụng Flutter / Dart VM"]
+            SQLiteDB[("SQLite Database file<br>(taskflow.db)")]
+            FlutterApp <--> |Đọc/Ghi cục bộ| SQLiteDB
+        end
+    end
+
+    subgraph CloudServer ["Đám mây Google Cloud Platform / Firebase"]
+        FirebaseAuthNode["Firebase Authentication<br>(Xác thực người dùng)"]
+        FirestoreNode["Cloud Firestore NoSQL Database<br>(Lưu trữ tài liệu và đồng bộ)"]
+    end
+
+    FlutterApp --> |HTTPS / WSS (gRPC)| FirebaseAuthNode
+    FlutterApp --> |HTTPS / WSS (gRPC)| FirestoreNode
+
+    %% CSS Styling
+    style ClientNode fill:#f8fafc,stroke:#475569,stroke-width:1.5px
+    style AndroidDevice fill:#f0fdf4,stroke:#16a34a,stroke-width:1.5px
+    style AppRuntime fill:#fffbeb,stroke:#d97706,stroke-width:1.5px
+    style CloudServer fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px
+    style FirebaseAuthNode fill:#fff,stroke:#64748b,stroke-width:1px
+    style FirestoreNode fill:#fff,stroke:#64748b,stroke-width:1px
+```
+
