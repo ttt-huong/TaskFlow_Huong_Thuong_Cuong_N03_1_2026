@@ -20,7 +20,17 @@ class TaskRepositoryImpl implements TaskRepository {
       try {
         final serverTasks = await _firebaseService.getAllTasks();
         final localTasks = await _sqliteService.getAllLocalTasks();
-        await _mergeAndResolveConflicts(serverTasks, localTasks);
+
+        // Dọn dẹp local tasks bị xóa trên server
+        final serverIds = serverTasks.map((t) => t.id).toSet();
+        for (var lt in localTasks) {
+          if (lt.isSynced == 1 && !serverIds.contains(lt.id)) {
+            await _sqliteService.deleteTask(lt.id);
+          }
+        }
+
+        final updatedLocalTasks = await _sqliteService.getAllLocalTasks();
+        await _mergeAndResolveConflicts(serverTasks, updatedLocalTasks);
         return await _sqliteService.getAllLocalTasks();
       } catch (e) {
         return _sqliteService.getAllLocalTasks();
@@ -38,7 +48,18 @@ class TaskRepositoryImpl implements TaskRepository {
             await _firebaseService.getTasksByProject(projectId);
         final localTasks =
             await _sqliteService.getLocalTasksByProject(projectId);
-        await _mergeAndResolveConflicts(serverTasks, localTasks);
+
+        // Dọn dẹp local tasks bị xóa trên server
+        final serverIds = serverTasks.map((t) => t.id).toSet();
+        for (var lt in localTasks) {
+          if (lt.isSynced == 1 && !serverIds.contains(lt.id)) {
+            await _sqliteService.deleteTask(lt.id);
+          }
+        }
+
+        final updatedLocalTasks =
+            await _sqliteService.getLocalTasksByProject(projectId);
+        await _mergeAndResolveConflicts(serverTasks, updatedLocalTasks);
         return await _sqliteService.getLocalTasksByProject(projectId);
       } catch (e) {
         return _sqliteService.getLocalTasksByProject(projectId);
@@ -54,7 +75,17 @@ class TaskRepositoryImpl implements TaskRepository {
       try {
         final serverTasks = await _firebaseService.getTasksByUser(userId);
         final localTasks = await _sqliteService.getLocalTasks(userId);
-        await _mergeAndResolveConflicts(serverTasks, localTasks);
+
+        // Dọn dẹp local tasks bị xóa trên server
+        final serverIds = serverTasks.map((t) => t.id).toSet();
+        for (var lt in localTasks) {
+          if (lt.isSynced == 1 && !serverIds.contains(lt.id)) {
+            await _sqliteService.deleteTask(lt.id);
+          }
+        }
+
+        final updatedLocalTasks = await _sqliteService.getLocalTasks(userId);
+        await _mergeAndResolveConflicts(serverTasks, updatedLocalTasks);
         return await _sqliteService.getLocalTasks(userId);
       } catch (e) {
         return _sqliteService.getLocalTasks(userId);
@@ -66,6 +97,30 @@ class TaskRepositoryImpl implements TaskRepository {
 
   /// Thuật toán Xử lý Xung đột 3 bên (Triple Conflict Merge / Conflict Resolution)
   /// So sánh ngày cập nhật (updatedAt) giữa Local và Server để đồng bộ hóa hai chiều.
+  @override
+  Future<Task?> getTaskById(String id) async {
+    if (_isOnline) {
+      try {
+        final serverTask = await _firebaseService.getTaskById(id);
+        if (serverTask != null) {
+          final localTask = await _sqliteService.getLocalTaskById(id);
+          if (localTask != null &&
+              localTask.isSynced == 0 &&
+              localTask.updatedAt.isAfter(serverTask.updatedAt)) {
+            // Giữ bản local mới hơn chưa đồng bộ, không ghi đè
+            return localTask;
+          } else {
+            await _sqliteService.cacheTask(serverTask, isSynced: true);
+            return serverTask;
+          }
+        }
+      } catch (_) {
+        // Fall back to local cache below.
+      }
+    }
+    return _sqliteService.getLocalTaskById(id);
+  }
+
   Future<void> _mergeAndResolveConflicts(
       List<Task> serverTasks, List<Task> localTasks) async {
     final Map<String, Task> localMap = {for (var t in localTasks) t.id: t};
@@ -116,7 +171,7 @@ class TaskRepositoryImpl implements TaskRepository {
     if (task.id.isEmpty) {
       task.id = const Uuid().v4();
     }
-    task.updatedAt = DateTime.now();
+    task.updatedAt = DateTime.now().toUtc();
 
     // 1. Ghi SQLite trước (Write-Ahead Logging / WAL) để tránh mất mát dữ liệu
     await _sqliteService.cacheTask(task, isSynced: false);
@@ -134,7 +189,7 @@ class TaskRepositoryImpl implements TaskRepository {
 
   @override
   Future<void> updateTask(Task task) async {
-    task.updatedAt = DateTime.now();
+    task.updatedAt = DateTime.now().toUtc();
 
     // 1. Ghi SQLite trước (Optimistic UI)
     await _sqliteService.cacheTask(task, isSynced: false);

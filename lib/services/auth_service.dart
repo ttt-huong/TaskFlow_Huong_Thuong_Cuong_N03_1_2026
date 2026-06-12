@@ -101,10 +101,87 @@ class AuthService {
     }
   }
 
+  Future<UserModel?> getCurrentUser() async {
+    if (!_isFirebaseReady) return null;
+
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) return null;
+
+    try {
+      final doc = await _firestore.collection('users').doc(firebaseUser.uid).get();
+      if (doc.exists && doc.data() != null) {
+        final user = UserModel.fromMap(doc.data()!, doc.id);
+        await _sqliteService.cacheUser(user);
+        return user;
+      }
+    } catch (_) {
+      final localUsers = await _sqliteService.getLocalUsers();
+      return localUsers.firstWhereOrNull(
+        (user) => user.id == firebaseUser.uid || user.email == firebaseUser.email,
+      );
+    }
+
+    return null;
+  }
+
   UserModel? getCurrentUserLocally(Map<String, dynamic>? data) {
     if (_isFirebaseReady && _auth.currentUser != null && data != null) {
       return UserModel.fromMap(data, _auth.currentUser!.uid);
     }
     return null;
+  }
+
+  /// Cập nhật tên hiển thị của người dùng
+  Future<bool> updateName(String userId, String newName) async {
+    try {
+      if (_isFirebaseReady) {
+        await _firestore.collection('users').doc(userId).update({'name': newName});
+      }
+      // Cập nhật cache SQLite
+      await _sqliteService.updateUserName(userId, newName);
+      return true;
+    } catch (e) {
+      // Nếu Firebase thất bại, chỉ cập nhật local
+      try {
+        await _sqliteService.updateUserName(userId, newName);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+  }
+
+  /// Đổi mật khẩu — trả về (success, message)
+  Future<({bool success, String message})> changePassword({
+    required String userId,
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    if (!_isFirebaseReady || _auth.currentUser == null) {
+      return (success: false, message: 'Cần kết nối mạng để đổi mật khẩu.');
+    }
+    try {
+      final user = _auth.currentUser!;
+      // Re-authenticate để xác minh mật khẩu hiện tại
+      final cred = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(cred);
+      // Đổi mật khẩu Firebase
+      await user.updatePassword(newPassword);
+      // Cập nhật SQLite cache
+      await _sqliteService.updateUserPassword(userId, newPassword);
+      return (success: true, message: 'Đổi mật khẩu thành công!');
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        return (success: false, message: 'Mật khẩu hiện tại không đúng.');
+      } else if (e.code == 'weak-password') {
+        return (success: false, message: 'Mật khẩu mới quá yếu.');
+      }
+      return (success: false, message: 'Lỗi: ${e.message ?? e.code}');
+    } catch (e) {
+      return (success: false, message: 'Có lỗi xảy ra, vui lòng thử lại.');
+    }
   }
 }

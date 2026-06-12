@@ -30,10 +30,16 @@ class ConnectivityProvider extends ChangeNotifier {
     });
   }
 
+  bool _initialSyncDone = false;
+
   /// Được gọi bởi [ChangeNotifierProxyProvider] trong main.dart để inject
   /// callback sync sau khi các provider phụ thuộc đã sẵn sàng.
   void updateSyncCallback({required VoidCallback onBackOnline}) {
     _onBackOnline = onBackOnline;
+    if (_isOnline && !_initialSyncDone) {
+      _initialSyncDone = true;
+      Future.microtask(() => _onBackOnline?.call());
+    }
   }
 
   @override

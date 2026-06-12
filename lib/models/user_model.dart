@@ -28,7 +28,7 @@ class UserModel {
       id: id,
       name: userName,
       email: data['email'] ?? '',
-      password: data['password'] ?? '', // Default rỗng — không dùng '123456' vì lý do bảo mật
+      password: data['password'] ?? data['offlineAuthHash'] ?? '',
       role: data['role'] ?? 'member',
       // Tự động lấy chữ cái đầu tiên của Tên để làm Avatar nếu DB chưa lưu trường này
       avatarChar:
@@ -41,7 +41,6 @@ class UserModel {
     return {
       'name': name,
       'email': email,
-      'password': password,
       'role': role,
       // Đẩy lên cả trường avatarChar để đồng bộ với Firebase/Database
       'avatarChar': avatarChar,

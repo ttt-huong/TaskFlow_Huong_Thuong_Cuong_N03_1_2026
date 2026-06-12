@@ -17,7 +17,11 @@ class ProjectProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
+  // Track the last loaded user for automatic refresh on sync reconnect
+  UserModel? _lastUser;
+
   Future<void> loadProjects(UserModel currentUser) async {
+    _lastUser = currentUser;
     _isLoading = true;
     notifyListeners();
 
@@ -32,7 +36,10 @@ class ProjectProvider extends ChangeNotifier {
   }
 
   Future<void> loadAllUsers() async {
+    _isLoading = true;
+    notifyListeners();
     _allUsers = await _userRepository.getUsers();
+    _isLoading = false;
     notifyListeners();
   }
 
@@ -66,6 +73,9 @@ class ProjectProvider extends ChangeNotifier {
   /// Đồng bộ các Project đang pending lên Firestore
   Future<void> syncPending() async {
     await _projectRepository.syncPendingProjects();
+    if (_lastUser != null) {
+      await loadProjects(_lastUser!);
+    }
   }
 }
 

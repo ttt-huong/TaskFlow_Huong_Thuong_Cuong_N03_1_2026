@@ -167,9 +167,9 @@ void main() {
       await tester.tap(find.byKey(ValueKey('day_${today.day}_${today.month}')));
       await tester.pumpAndSettle();
 
-      // Member A chỉ được xem t2, t1 tuyệt đối không được xuất hiện
+      // Member A có thể xem tất cả task (cả t1 và t2) theo thiết kế mới
       expect(find.text('Task Assigned to Member A'), findsOneWidget);
-      expect(find.text('Task Manager Only'), findsNothing);
+      expect(find.text('Task Manager Only'), findsOneWidget);
     });
 
     // 3. DATE RENDERING & STATUS COLORS

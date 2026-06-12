@@ -22,8 +22,24 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<UserModel?> getCurrentUser() async {
-    // Để cho đơn giản trong phiên bản này, nếu user đã đăng nhập Firebase, chúng ta cần fetch document của họ.
-    // Nếu ứng dụng đang offline, có thể lấy từ SQLite hoặc bỏ qua
-    return null; // Tạm thời để trống hoặc bạn có thể xử lý việc lưu currentUser session locally.
+    return await _authService.getCurrentUser();
+  }
+
+  @override
+  Future<bool> updateName(String userId, String newName) async {
+    return await _authService.updateName(userId, newName);
+  }
+
+  @override
+  Future<({bool success, String message})> changePassword({
+    required String userId,
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    return await _authService.changePassword(
+      userId: userId,
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+    );
   }
 }

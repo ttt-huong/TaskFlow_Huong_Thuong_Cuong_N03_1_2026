@@ -1,203 +1,204 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-import 'firebase_service.dart' as app_fs;
+import 'package:flutter/foundation.dart';
+import 'sqlite_service.dart';
 
-/// Utility class để tạo dữ liệu mẫu trên Firebase cho mục đích test.
-/// CHỈ DÙNG TRONG MÔI TRƯỜNG DEVELOPMENT/TEST.
+/// ============================================================
+/// Firebase Seed Data
+/// Dùng để tạo dữ liệu ban đầu cho TaskFlow.
+/// Sau khi seed xong, không gọi lại seedAll() trong app thật.
+/// ============================================================
 class FirebaseSeedData {
   static bool get _isFirebaseReady => Firebase.apps.isNotEmpty;
+
   static FirebaseAuth get _auth => FirebaseAuth.instance;
   static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
-  static final app_fs.FirebaseService _firebaseService = app_fs.FirebaseService();
 
-  // ─── ID cố định cho dữ liệu mẫu ───
-  static const String _managerEmail = 'manager@gmail.com';
-  static const String _memberEmail = 'member@gmail.com';
-  static const String _defaultPassword = '123456';
+  static const String managerEmail = 'huong@gmail.com';
+  static const String memberEmail = 'huong1@gmail.com';
+  static const String memberEmail2 = 'huong2@gmail.com';
+  static const String memberEmail3 = 'huong3@gmail.com';
+  static const String defaultPassword = '123456';
 
-  /// Seed toàn bộ dữ liệu mẫu lên Firebase (Auth + Firestore)
-  /// Trả về true nếu thành công, false nếu lỗi
   static Future<bool> seedAll() async {
     if (!_isFirebaseReady) {
-      debugPrint('[SEED] Firebase chưa sẵn sàng. Không thể seed dữ liệu.');
+      debugPrint('[SEED] Firebase chưa sẵn sàng.');
       return false;
     }
 
     try {
-      debugPrint('[SEED] ═══════════════════════════════════════');
-      debugPrint('[SEED] Bắt đầu seed dữ liệu Firebase...');
+      debugPrint('[SEED] Đang làm sạch dữ liệu cũ...');
+      await clearSeedData();
 
-      // Lưu lại user đang đăng nhập hiện tại để khôi phục sau
-      final currentUser = _auth.currentUser;
-      final currentEmail = currentUser?.email;
+      debugPrint('[SEED] Bắt đầu tạo dữ liệu...');
 
-      // 1. Tạo tài khoản Manager trên Firebase Auth + Firestore
       final managerId = await _seedUser(
-        email: _managerEmail,
-        password: _defaultPassword,
-        name: 'Quản lý Nguyễn',
+        email: managerEmail,
+        password: defaultPassword,
+        name: 'Hường',
         role: 'manager',
       );
-      debugPrint('[SEED] ✅ Manager created: $managerId');
 
       final memberId = await _seedUser(
-        email: _memberEmail,
-        password: _defaultPassword,
-        name: 'Thành viên Trần',
+        email: memberEmail,
+        password: defaultPassword,
+        name: 'Duy',
         role: 'member',
       );
-      debugPrint('[SEED] ✅ Member created: $memberId');
 
-      // Đăng nhập lại bằng Manager để có quyền tạo Project và Task
+      final memberId2 = await _seedUser(
+        email: memberEmail2,
+        password: defaultPassword,
+        name: 'Thương',
+        role: 'member',
+      );
+
+      final memberId3 = await _seedUser(
+        email: memberEmail3,
+        password: defaultPassword,
+        name: 'Cường',
+        role: 'member',
+      );
+
       await _auth.signInWithEmailAndPassword(
-        email: _managerEmail,
-        password: _defaultPassword,
+        email: managerEmail,
+        password: defaultPassword,
       );
-      debugPrint('[SEED] Đã chuyển sang Manager Auth để ghi dữ liệu...');
 
-      // 3. Tạo dự án mẫu
-      final project1Id = await _seedProject(
+      final projectId = await _seedProject(
         name: 'Dự án Mobile App',
-        description: 'Phát triển ứng dụng quản lý công việc TaskFlow trên Flutter',
-        memberIds: [managerId, memberId],
+        description: 'Phát triển ứng dụng quản lý công việc TaskFlow bằng Flutter',
+        memberIds: [managerId, memberId, memberId2, memberId3],
       );
-      debugPrint('[SEED] ✅ Project 1 created: $project1Id');
 
-      final project2Id = await _seedProject(
-        name: 'Dự án Website',
-        description: 'Xây dựng trang web quản trị cho hệ thống TaskFlow',
-        memberIds: [managerId, memberId],
-      );
-      debugPrint('[SEED] ✅ Project 2 created: $project2Id');
-
-      // 4. Tạo Tasks mẫu cho Project 1
       await _seedTask(
         title: 'Thiết kế giao diện đăng nhập',
-        description: 'Tạo UI Login Screen với Material Design 3',
-        projectId: project1Id,
+        description: 'Xây dựng Login Screen theo Material Design 3',
+        projectId: projectId,
         assignedTo: memberId,
-        assigneeName: 'Thành viên Trần',
-        assigneeAvatar: 'T',
-        status: 'done',
+        assigneeName: 'Duy',
+        assigneeAvatar: 'D',
+        status: 'todo',
         daysFromNow: 7,
       );
 
       await _seedTask(
-        title: 'Tích hợp Firebase Auth',
-        description: 'Kết nối đăng nhập/đăng ký với Firebase Authentication',
-        projectId: project1Id,
+        title: 'Tích hợp Firebase Authentication',
+        description: 'Kết nối đăng nhập và đăng ký tài khoản',
+        projectId: projectId,
         assignedTo: memberId,
-        assigneeName: 'Thành viên Trần',
-        assigneeAvatar: 'T',
-        status: 'reviewing',
+        assigneeName: 'Duy',
+        assigneeAvatar: 'D',
+        status: 'doing',
         daysFromNow: 5,
       );
 
       await _seedTask(
-        title: 'Xây dựng màn hình danh sách Task',
-        description: 'Hiển thị danh sách Task theo Project với bộ lọc trạng thái',
-        projectId: project1Id,
-        assignedTo: memberId,
-        assigneeName: 'Thành viên Trần',
+        title: 'Kiểm thử luồng duyệt công việc',
+        description: 'Member gửi task sang reviewing để Manager kiểm tra',
+        projectId: projectId,
+        assignedTo: memberId2,
+        assigneeName: 'Thương',
         assigneeAvatar: 'T',
-        status: 'doing',
-        daysFromNow: 10,
-      );
-
-      await _seedTask(
-        title: 'Viết Unit Test cho Task Model',
-        description: 'Kiểm tra State Machine transitions và validation logic',
-        projectId: project1Id,
-        assignedTo: memberId,
-        assigneeName: 'Thành viên Trần',
-        assigneeAvatar: 'T',
-        status: 'todo',
-        daysFromNow: 14,
-      );
-
-      // 5. Tạo Tasks mẫu cho Project 2
-      await _seedTask(
-        title: 'Thiết kế wireframe trang Dashboard',
-        description: 'Tạo mockup cho trang tổng quan quản trị',
-        projectId: project2Id,
-        assignedTo: memberId,
-        assigneeName: 'Thành viên Trần',
-        assigneeAvatar: 'T',
-        status: 'doing',
+        status: 'reviewing',
         daysFromNow: 3,
+      );
+
+      await _seedTask(
+        title: 'Thiết kế Database SQLite',
+        description: 'Xây dựng schema local database version 7',
+        projectId: projectId,
+        assignedTo: memberId,
+        assigneeName: 'Duy',
+        assigneeAvatar: 'D',
+        status: 'done',
+        daysFromNow: 1,
+      );
+
+      await _seedTask(
+        title: 'Tích hợp Notification Center',
+        description: 'Thông báo phân công, từ chối và duyệt task',
+        projectId: projectId,
+        assignedTo: memberId3,
+        assigneeName: 'Cường',
+        assigneeAvatar: 'C',
+        status: 'reviewing',
+        daysFromNow: 2,
+      );
+
+      await _seedTask(
+        title: 'Kiểm thử Offline Sync',
+        description: 'Kiểm tra đồng bộ SQLite Local và Cloud Firestore',
+        projectId: projectId,
+        assignedTo: memberId2,
+        assigneeName: 'Thương',
+        assigneeAvatar: 'T',
+        status: 'doing',
+        daysFromNow: 4,
         isUrgent: true,
       );
 
       await _seedTask(
-        title: 'Cài đặt môi trường Next.js',
-        description: 'Khởi tạo project Next.js với TypeScript và Tailwind CSS',
-        projectId: project2Id,
-        assignedTo: memberId,
-        assigneeName: 'Thành viên Trần',
-        assigneeAvatar: 'T',
+        title: 'Lập trình API Node.js',
+        description: 'Xây dựng RESTful API cho TaskFlow backend',
+        projectId: projectId,
+        assignedTo: memberId3,
+        assigneeName: 'Cường',
+        assigneeAvatar: 'C',
         status: 'todo',
-        daysFromNow: 7,
+        daysFromNow: 6,
       );
 
-      debugPrint('[SEED] ✅ Tạo 6 tasks mẫu thành công');
+      await _seedTask(
+        title: 'Kiểm thử bảo mật',
+        description: 'Đánh giá lỗ hổng bảo mật và phân quyền API',
+        projectId: projectId,
+        assignedTo: memberId2,
+        assigneeName: 'Thương',
+        assigneeAvatar: 'T',
+        status: 'doing',
+        daysFromNow: 8,
+      );
 
-      // 6. Khôi phục lại phiên đăng nhập ban đầu
-      if (currentEmail != null) {
-        try {
-          await _auth.signInWithEmailAndPassword(
-            email: currentEmail,
-            password: _defaultPassword,
-          );
-          debugPrint('[SEED] ✅ Đã khôi phục phiên đăng nhập: $currentEmail');
-        } catch (e) {
-          debugPrint('[SEED] ⚠️ Không thể khôi phục phiên. Cần đăng nhập lại.');
-        }
-      }
+      debugPrint('[SEED] Tạo dữ liệu thành công.');
+      debugPrint('[SEED] Manager: $managerEmail / $defaultPassword');
+      debugPrint('[SEED] Member 1: $memberEmail / $defaultPassword');
+      debugPrint('[SEED] Member 2: $memberEmail2 / $defaultPassword');
+      debugPrint('[SEED] Member 3: $memberEmail3 / $defaultPassword');
 
-      debugPrint('[SEED] ═══════════════════════════════════════');
-      debugPrint('[SEED] 🎉 SEED HOÀN TẤT! Kiểm tra Firebase Console.');
       return true;
     } catch (e) {
-      debugPrint('[SEED] ❌ Lỗi seed dữ liệu: $e');
+      debugPrint('[SEED] Lỗi tạo dữ liệu: $e');
       return false;
     }
   }
 
-  /// Xóa toàn bộ dữ liệu test trên Firestore (Chỉ xóa Tasks và Projects, giữ lại Users)
-  static Future<bool> clearAll() async {
+  static Future<bool> clearSeedData() async {
     if (!_isFirebaseReady) return false;
+
     try {
-      debugPrint('[SEED] Đang xóa dữ liệu Firestore...');
-      
-      // Phải là manager mới có quyền xóa
-      try {
-        await _auth.signInWithEmailAndPassword(
-          email: _managerEmail,
-          password: _defaultPassword,
-        );
-      } catch (e) {
-        debugPrint('[SEED] Không thể đăng nhập manager, có thể bị lỗi permission: $e');
+      final tasks = await _firestore.collection('tasks').get();
+      for (final doc in tasks.docs) {
+        await doc.reference.delete();
       }
 
-      await _firebaseService.clearCollection('tasks');
-      await _firebaseService.clearCollection('projects');
-      // Không xóa users vì rules không cho phép xóa user khác
-      debugPrint('[SEED] ✅ Đã xóa toàn bộ dữ liệu Firestore.');
+      final projects = await _firestore.collection('projects').get();
+      for (final doc in projects.docs) {
+        await doc.reference.delete();
+      }
+
+      // Dọn dẹp cả SQLite local
+      await SQLiteService().clearAllLocalData();
+
+      debugPrint('[SEED] Đã xóa tasks và projects trên Firestore và SQLite local.');
       return true;
     } catch (e) {
-      debugPrint('[SEED] ❌ Lỗi xóa dữ liệu: $e');
+      debugPrint('[SEED] Lỗi xóa dữ liệu: $e');
       return false;
     }
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // Các phương thức hỗ trợ nội bộ (Private Helpers)
-  // ═══════════════════════════════════════════════════════════
-
-  /// Tạo hoặc cập nhật tài khoản user trên Firebase Auth + Firestore
-  /// Trả về UID của user
   static Future<String> _seedUser({
     required String email,
     required String password,
@@ -207,7 +208,6 @@ class FirebaseSeedData {
     String uid;
 
     try {
-      // Thử tạo tài khoản mới trên Firebase Auth
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
@@ -215,7 +215,6 @@ class FirebaseSeedData {
       uid = credential.user!.uid;
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
-        // Tài khoản đã tồn tại → đăng nhập để lấy UID
         final credential = await _auth.signInWithEmailAndPassword(
           email: email,
           password: password,
@@ -226,11 +225,9 @@ class FirebaseSeedData {
       }
     }
 
-    // Ghi/ghi đè thông tin user lên Firestore
     await _firestore.collection('users').doc(uid).set({
       'name': name,
       'email': email,
-      'password': password,
       'role': role,
       'avatarChar': name.isNotEmpty ? name[0].toUpperCase() : 'U',
     });
@@ -238,47 +235,23 @@ class FirebaseSeedData {
     return uid;
   }
 
-  /// Tạo dự án mẫu trên Firestore, trả về document ID
   static Future<String> _seedProject({
     required String name,
     required String description,
     required List<String> memberIds,
   }) async {
-    // Kiểm tra xem project cùng tên đã tồn tại chưa
-    final existing = await _firestore
-        .collection('projects')
-        .where('name', isEqualTo: name)
-        .get();
+    final now = DateTime.now().toUtc();
 
-    if (existing.docs.isNotEmpty) {
-      // Đã tồn tại → cập nhật lại thông tin
-      final docId = existing.docs.first.id;
-      await _firestore.collection('projects').doc(docId).set({
-        'name': name,
-        'description': description,
-        'memberIds': memberIds,
-        'todoCount': 0,
-        'doingCount': 0,
-        'doneCount': 0,
-        'progress': 0.0,
-      });
-      return docId;
-    }
-
-    // Chưa tồn tại → tạo mới
     final docRef = await _firestore.collection('projects').add({
       'name': name,
       'description': description,
       'memberIds': memberIds,
-      'todoCount': 0,
-      'doingCount': 0,
-      'doneCount': 0,
-      'progress': 0.0,
+      'updatedAt': now.toIso8601String(),
     });
+
     return docRef.id;
   }
 
-  /// Tạo task mẫu trên Firestore
   static Future<void> _seedTask({
     required String title,
     required String description,
@@ -290,7 +263,7 @@ class FirebaseSeedData {
     required int daysFromNow,
     bool isUrgent = false,
   }) async {
-    final now = DateTime.now();
+    final now = DateTime.now().toUtc();
     final deadline = now.add(Duration(days: daysFromNow));
 
     await _firestore.collection('tasks').add({
@@ -304,6 +277,7 @@ class FirebaseSeedData {
       'deadline': deadline.toIso8601String(),
       'isUrgent': isUrgent,
       'updatedAt': now.toIso8601String(),
+      'rejectionReason': '',
     });
   }
 }

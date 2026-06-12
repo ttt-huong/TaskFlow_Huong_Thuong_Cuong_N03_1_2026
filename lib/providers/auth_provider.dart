@@ -9,6 +9,9 @@ class AuthProvider extends ChangeNotifier {
   
   UserModel? _currentUser;
   UserModel? get currentUser => _currentUser;
+
+  bool _isInitialized = false;
+  bool get isInitialized => _isInitialized;
   
   bool _isLoading = false;
   bool get isLoading => _isLoading;
@@ -23,6 +26,28 @@ class AuthProvider extends ChangeNotifier {
   bool get isManager {
     if (_isOfflineMode) return false; // Offline mặc định là Member/Guest hạn chế
     return _currentUser?.role == 'manager';
+  }
+
+  AuthProvider() {
+    restoreSession();
+  }
+
+  Future<void> restoreSession() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _currentUser = await _authRepository.getCurrentUser();
+      _isOfflineMode = false;
+    } catch (_) {
+      _currentUser = null;
+      _isOfflineMode = true;
+    } finally {
+      _isInitialized = true;
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<bool> login(String email, String password) async {
@@ -121,5 +146,53 @@ class AuthProvider extends ChangeNotifier {
     _currentUser = null;
     _isOfflineMode = false;
     notifyListeners();
+  }
+
+  /// Cập nhật tên — cập nhật cả local state ngay lập tức
+  Future<bool> updateName(String newName) async {
+    final user = _currentUser;
+    if (user == null) return false;
+    final success = await _authRepository.updateName(user.id, newName);
+    if (success) {
+      _currentUser = UserModel(
+        id: user.id,
+        name: newName,
+        email: user.email,
+        password: user.password,
+        role: user.role,
+        avatarChar: newName.isNotEmpty ? newName[0].toUpperCase() : user.avatarChar,
+      );
+      notifyListeners();
+    }
+    return success;
+  }
+
+  /// Đổi mật khẩu — cập nhật local cache nếu thành công
+  Future<({bool success, String message})> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _currentUser;
+    if (user == null) {
+      return (success: false, message: 'Chưa đăng nhập.');
+    }
+    final result = await _authRepository.changePassword(
+      userId: user.id,
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+    );
+    if (result.success) {
+      // Cập nhật password trong local model
+      _currentUser = UserModel(
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        password: newPassword,
+        role: user.role,
+        avatarChar: user.avatarChar,
+      );
+      notifyListeners();
+    }
+    return result;
   }
 }
