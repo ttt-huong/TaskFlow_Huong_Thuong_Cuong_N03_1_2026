@@ -29,6 +29,9 @@ flowchart LR
         UC7(["Cập nhật trạng thái (Bắt đầu / Gửi duyệt)"])
         UC8(["Phê duyệt / Từ chối Task (Review)"])
         UC9(["Nhận thông báo tự động"])
+        UC10(["Quản lý hồ sơ cá nhân"])
+        UC11(["Xem thống kê"])
+        UC12(["Đồng bộ dữ liệu ngoại tuyến"])
     end
 
     %% Mối liên kết của Manager
@@ -40,12 +43,16 @@ flowchart LR
     Manager --> UC6
     Manager --> UC8
     Manager --> UC9
+    Manager --> UC11
+    Manager --> UC12
 
     %% Mối liên kết của Member
     Member --> UC1
     Member --> UC6
     Member --> UC7
     Member --> UC9
+    Member --> UC10
+    Member --> UC12
 
     %% Style CSS
     style Manager fill:#eef2ff,stroke:#4f46e5,stroke-width:2px
@@ -59,6 +66,9 @@ flowchart LR
     style UC7 fill:#fff,stroke:#64748b,stroke-width:1.5px
     style UC8 fill:#fff,stroke:#64748b,stroke-width:1.5px
     style UC9 fill:#fff,stroke:#64748b,stroke-width:1.5px
+    style UC10 fill:#fff,stroke:#64748b,stroke-width:1.5px
+    style UC11 fill:#fff,stroke:#64748b,stroke-width:1.5px
+    style UC12 fill:#fff,stroke:#64748b,stroke-width:1.5px
 ```
 
 ---
