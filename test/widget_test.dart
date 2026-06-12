@@ -21,6 +21,7 @@ void main() {
         child: const MyApp(),
       ),
     );
+    await tester.pumpAndSettle();
 
     // Verify that the login text or button is present
     expect(find.byType(TextField), findsNWidgets(2)); // Email and password text fields
