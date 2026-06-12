@@ -9,6 +9,9 @@ class AuthProvider extends ChangeNotifier {
   
   UserModel? _currentUser;
   UserModel? get currentUser => _currentUser;
+
+  bool _isInitialized = false;
+  bool get isInitialized => _isInitialized;
   
   bool _isLoading = false;
   bool get isLoading => _isLoading;
@@ -23,6 +26,28 @@ class AuthProvider extends ChangeNotifier {
   bool get isManager {
     if (_isOfflineMode) return false; // Offline mặc định là Member/Guest hạn chế
     return _currentUser?.role == 'manager';
+  }
+
+  AuthProvider() {
+    restoreSession();
+  }
+
+  Future<void> restoreSession() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _currentUser = await _authRepository.getCurrentUser();
+      _isOfflineMode = false;
+    } catch (_) {
+      _currentUser = null;
+      _isOfflineMode = true;
+    } finally {
+      _isInitialized = true;
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<bool> login(String email, String password) async {
@@ -171,4 +196,3 @@ class AuthProvider extends ChangeNotifier {
     return result;
   }
 }
-

@@ -46,12 +46,14 @@ Future<void> main() async {
             ConnectivityProvider>(
           create: (_) => ConnectivityProvider(),
           update: (_, taskProvider, projectProvider, previous) {
-            previous?.updateSyncCallback(
+            final provider = previous ?? ConnectivityProvider();
+            provider.updateSyncCallback(
               onBackOnline: () async {
                 await projectProvider.syncPending();
+                await taskProvider.syncPending();
               },
             );
-            return previous ?? ConnectivityProvider();
+            return provider;
           },
         ),
       ],

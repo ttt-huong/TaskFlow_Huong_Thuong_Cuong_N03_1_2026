@@ -18,6 +18,12 @@ class MyApp extends StatelessWidget {
       // Màn hình ban đầu: kiểm tra đăng nhập
       home: Consumer<AuthProvider>(
         builder: (context, auth, _) {
+          if (!auth.isInitialized) {
+            return const Scaffold(
+              backgroundColor: AppColors.background,
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
           if (auth.currentUser != null) {
             return const MainScreen();
           }

@@ -1,21 +1,22 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+
 import '../models/notification_model.dart';
-import '../models/user_model.dart';
 import '../models/task_model.dart';
+import '../models/user_model.dart';
 import '../services/sqlite_service.dart';
 
 class NotificationProvider extends ChangeNotifier {
   final SQLiteService _sqliteService = SQLiteService();
+  final Map<String, Task> _previousTasks = {};
+
   List<NotificationModel> _notifications = [];
   UserModel? _currentUser;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _tasksSubscription;
-
-  // Bản lưu trữ tasks từ snapshot trước để so sánh trạng thái và tìm thay đổi
-  final Map<String, Task> _previousTasks = {};
   bool _isFirstSnapshot = true;
 
   List<NotificationModel> get notifications => _notifications;
@@ -27,105 +28,174 @@ class NotificationProvider extends ChangeNotifier {
 
   void updateUser(UserModel? user) {
     if (_currentUser?.id == user?.id) return;
+
     _currentUser = user;
+    _notifications = [];
     _isFirstSnapshot = true;
     _previousTasks.clear();
     _tasksSubscription?.cancel();
     _tasksSubscription = null;
+    notifyListeners();
 
-    if (user != null && Firebase.apps.isNotEmpty) {
+    if (user == null) return;
+
+    loadNotifications(user.id);
+    if (Firebase.apps.isNotEmpty) {
       _startListeningToTasks();
     }
   }
 
   void _startListeningToTasks() {
-    if (_currentUser == null) return;
-    final firestore = FirebaseFirestore.instance;
+    final user = _currentUser;
+    if (user == null) return;
 
-    // Lắng nghe tất cả các thay đổi của Tasks trong Firestore
-    _tasksSubscription = firestore.collection('tasks').snapshots().listen((snapshot) {
-      if (_currentUser == null) return;
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection('tasks');
+    if (user.role != 'manager') {
+      query = query.where('assignedTo', isEqualTo: user.id);
+    }
 
-      final currentTasks = snapshot.docs.map((doc) => Task.fromMap(doc.data(), doc.id)).toList();
+    _tasksSubscription = query.snapshots().listen((snapshot) async {
+      final currentUser = _currentUser;
+      if (currentUser == null) return;
+
+      final currentTasks = snapshot.docs
+          .map((doc) => Task.fromMap(doc.data(), doc.id))
+          .toList();
 
       if (_isFirstSnapshot) {
-        // Snapshot đầu tiên: Chỉ lưu trữ trạng thái hiện tại, không bắn thông báo
-        for (var task in currentTasks) {
+        for (final task in currentTasks) {
           _previousTasks[task.id] = task;
         }
         _isFirstSnapshot = false;
         return;
       }
 
-      for (var task in currentTasks) {
+      final currentIds = currentTasks.map((task) => task.id).toSet();
+      final deletedIds =
+          _previousTasks.keys.where((id) => !currentIds.contains(id)).toList();
+      for (final id in deletedIds) {
+        await deleteNotificationsByTaskId(id);
+      }
+
+      for (final task in currentTasks) {
         final previousTask = _previousTasks[task.id];
-
-        // 1. Kiểm tra luồng Member: Manager giao task cho Member
-        if (_currentUser!.role == 'member') {
-          if (task.assignedTo == _currentUser!.id) {
-            // Task mới được giao hoặc task đổi sang được giao cho member này
-            if (previousTask == null || previousTask.assignedTo != _currentUser!.id) {
-              _triggerNotification(
-                title: 'Nhiệm vụ mới được giao 📋',
-                message: 'Bạn vừa được giao nhiệm vụ "${task.title}".',
-                type: 'task_assigned',
-              );
-            }
-          }
-        }
-
-        // 2. Kiểm tra luồng Manager: Member nộp task (chuyển sang 'reviewing')
-        if (_currentUser!.role == 'manager') {
-          if (task.status.toLowerCase() == 'reviewing') {
-            // Chỉ thông báo nếu trạng thái trước đó KHÔNG PHẢI là reviewing
-            if (previousTask == null || previousTask.status.toLowerCase() != 'reviewing') {
-              _triggerNotification(
-                title: 'Nhiệm vụ chờ duyệt 📤',
-                message: 'Thành viên ${task.assigneeName.isNotEmpty ? task.assigneeName : "chưa rõ"} đã nộp nhiệm vụ "${task.title}" để phê duyệt.',
-                type: 'task_assigned',
-              );
-            }
-          }
-        }
-
-        // Cập nhật lại cache task trước đó
+        await _handleTaskChangeForUser(currentUser, task, previousTask);
         _previousTasks[task.id] = task;
       }
 
-      // Xử lý các task bị xóa khỏi Firestore để dọn dẹp cache
-      final currentIds = currentTasks.map((t) => t.id).toSet();
       _previousTasks.removeWhere((id, _) => !currentIds.contains(id));
-    }, onError: (e) {
-      debugPrint('NotificationProvider Firebase Stream Error: $e');
+    }, onError: (error) {
+      debugPrint('NotificationProvider Firebase Stream Error: $error');
     });
   }
 
+  Future<void> _handleTaskChangeForUser(
+    UserModel user,
+    Task task,
+    Task? previousTask,
+  ) async {
+    final status = task.status.toLowerCase();
+    final previousStatus = previousTask?.status.toLowerCase();
+
+    if (user.role == 'member' && task.assignedTo == user.id) {
+      if (previousTask == null || previousTask.assignedTo != user.id) {
+        await _triggerNotification(
+          userId: user.id,
+          relatedTaskId: task.id,
+          title: 'Nhiệm vụ mới được giao',
+          message: 'Bạn vừa được giao nhiệm vụ "${task.title}".',
+          type: 'task_assigned',
+          eventTime: task.updatedAt,
+        );
+      } else if (status == 'todo' && previousStatus == 'reviewing') {
+        final reason = task.rejectionReason.trim();
+        await _triggerNotification(
+          userId: user.id,
+          relatedTaskId: task.id,
+          title: 'Nhiệm vụ bị từ chối',
+          message: reason.isEmpty
+              ? 'Nhiệm vụ "${task.title}" bị từ chối.'
+              : 'Nhiệm vụ "${task.title}" bị từ chối. Lý do: "$reason".',
+          type: 'task_rejected',
+          eventTime: task.updatedAt,
+        );
+      } else if (status == 'done' && previousStatus == 'reviewing') {
+        await _triggerNotification(
+          userId: user.id,
+          relatedTaskId: task.id,
+          title: 'Nhiệm vụ được duyệt',
+          message: 'Nhiệm vụ "${task.title}" của bạn đã được duyệt.',
+          type: 'task_approved',
+          eventTime: task.updatedAt,
+        );
+      }
+    }
+
+    if (user.role == 'manager' &&
+        status == 'reviewing' &&
+        previousStatus != 'reviewing') {
+      await _triggerNotification(
+        userId: user.id,
+        relatedTaskId: task.id,
+        title: 'Nhiệm vụ chờ duyệt',
+        message:
+            'Thành viên ${task.assigneeName.isNotEmpty ? task.assigneeName : "chưa rõ"} đã nộp nhiệm vụ "${task.title}" để phê duyệt.',
+        type: 'task_review_submitted',
+        eventTime: task.updatedAt,
+      );
+    }
+  }
+
   Future<void> _triggerNotification({
+    required String userId,
+    required String? relatedTaskId,
     required String title,
     required String message,
     required String type,
+    required DateTime eventTime,
   }) async {
     final notification = NotificationModel(
       id: const Uuid().v4(),
+      userId: userId,
+      relatedTaskId: relatedTaskId,
       title: title,
       message: message,
-      createdAt: DateTime.now(),
+      createdAt: eventTime.toUtc(),
       isRead: false,
       type: type,
     );
     await addNotification(notification);
   }
 
-  Future<void> loadNotifications() async {
-    _notifications = await _sqliteService.getLocalNotifications();
-    if (_notifications.isEmpty) {
-      await _seedMockNotifications();
-      _notifications = await _sqliteService.getLocalNotifications();
+  Future<void> loadNotifications([String? userId]) async {
+    final uid = userId ?? _currentUser?.id;
+    if (uid == null || uid.isEmpty) {
+      _notifications = [];
+      notifyListeners();
+      return;
     }
+
+    _notifications = await _sqliteService.getLocalNotifications(uid);
     notifyListeners();
   }
 
   Future<void> addNotification(NotificationModel notification) async {
+    final relatedTaskId = notification.relatedTaskId;
+    if (relatedTaskId != null && relatedTaskId.isNotEmpty) {
+      final existsInMemory = _notifications.any((n) =>
+          n.userId == notification.userId &&
+          n.relatedTaskId == relatedTaskId &&
+          n.type == notification.type);
+      if (existsInMemory) return;
+
+      final existsInLocal = await _sqliteService.hasNotificationForTaskType(
+        userId: notification.userId,
+        relatedTaskId: relatedTaskId,
+        type: notification.type,
+      );
+      if (existsInLocal) return;
+    }
+
     await _sqliteService.cacheNotification(notification);
     _notifications.insert(0, notification);
     notifyListeners();
@@ -134,46 +204,25 @@ class NotificationProvider extends ChangeNotifier {
   Future<void> markAsRead(String id) async {
     await _sqliteService.markNotificationRead(id);
     final index = _notifications.indexWhere((n) => n.id == id);
-    if (index != -1) {
-      _notifications[index] = _notifications[index].copyWith(isRead: true);
-      notifyListeners();
-    }
+    if (index == -1) return;
+
+    _notifications[index] = _notifications[index].copyWith(isRead: true);
+    notifyListeners();
   }
 
   Future<void> markAllAsRead() async {
-    await _sqliteService.markAllNotificationsRead();
+    final uid = _currentUser?.id;
+    if (uid != null && uid.isNotEmpty) {
+      await _sqliteService.markAllNotificationsRead(uid);
+    }
     _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
     notifyListeners();
   }
 
-  Future<void> _seedMockNotifications() async {
-    final mocks = [
-      NotificationModel(
-        id: 'n1',
-        title: 'Có nhiệm vụ mới',
-        message: 'Bạn vừa được giao nhiệm vụ "Cập nhật tài liệu API".',
-        createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
-        type: 'task_assigned',
-      ),
-      NotificationModel(
-        id: 'n2',
-        title: 'Nhiệm vụ sắp đến hạn',
-        message: 'Nhiệm vụ "Fix lỗi UI trang chủ" sắp đến hạn trong 2 giờ nữa.',
-        createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-        type: 'reminder',
-      ),
-      NotificationModel(
-        id: 'n3',
-        title: 'Cập nhật hệ thống',
-        message: 'Ứng dụng đã được nâng cấp lên phiên bản 2.0.',
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        isRead: true,
-        type: 'system',
-      ),
-    ];
-    for (var n in mocks) {
-      await _sqliteService.cacheNotification(n);
-    }
+  Future<void> deleteNotificationsByTaskId(String taskId) async {
+    await _sqliteService.deleteNotificationsByTaskId(taskId);
+    _notifications.removeWhere((n) => n.relatedTaskId == taskId);
+    notifyListeners();
   }
 
   @override
