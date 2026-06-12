@@ -31,9 +31,28 @@ class AuthService {
           return user;
         }
         return null;
+      } on FirebaseAuthException catch (e) {
+        // Nếu là lỗi tài khoản/mật khẩu, rethrow ngay lập tức để AuthProvider xử lý lỗi chính xác
+        if (e.code == 'wrong-password' ||
+            e.code == 'invalid-credential' ||
+            e.code == 'user-not-found' ||
+            e.code == 'invalid-email' ||
+            e.code == 'user-disabled') {
+          rethrow;
+        }
+        // Lỗi mạng hoặc lỗi khác -> thử đăng nhập offline qua SQLite
+        final localUser = await _loginLocally(email, password);
+        if (localUser != null) {
+          return localUser;
+        }
+        rethrow;
       } catch (e) {
-        // Firebase thất bại (mất mạng, timeout…) → fallback sang SQLite
-        return _loginLocally(email, password);
+        // Lỗi chung khác -> thử đăng nhập offline qua SQLite
+        final localUser = await _loginLocally(email, password);
+        if (localUser != null) {
+          return localUser;
+        }
+        rethrow;
       }
     } else {
       // Firebase chưa khởi tạo → dùng SQLite
@@ -108,7 +127,8 @@ class AuthService {
     if (firebaseUser == null) return null;
 
     try {
-      final doc = await _firestore.collection('users').doc(firebaseUser.uid).get();
+      final doc =
+          await _firestore.collection('users').doc(firebaseUser.uid).get();
       if (doc.exists && doc.data() != null) {
         final user = UserModel.fromMap(doc.data()!, doc.id);
         await _sqliteService.cacheUser(user);
@@ -117,7 +137,8 @@ class AuthService {
     } catch (_) {
       final localUsers = await _sqliteService.getLocalUsers();
       return localUsers.firstWhereOrNull(
-        (user) => user.id == firebaseUser.uid || user.email == firebaseUser.email,
+        (user) =>
+            user.id == firebaseUser.uid || user.email == firebaseUser.email,
       );
     }
 
@@ -135,7 +156,10 @@ class AuthService {
   Future<bool> updateName(String userId, String newName) async {
     try {
       if (_isFirebaseReady) {
-        await _firestore.collection('users').doc(userId).update({'name': newName});
+        await _firestore
+            .collection('users')
+            .doc(userId)
+            .update({'name': newName});
       }
       // Cập nhật cache SQLite
       await _sqliteService.updateUserName(userId, newName);

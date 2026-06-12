@@ -6,13 +6,13 @@ import '../repositories/impl/auth_repository_impl.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthRepositoryImpl _authRepository = AuthRepositoryImpl();
-  
+
   UserModel? _currentUser;
   UserModel? get currentUser => _currentUser;
 
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
-  
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
@@ -24,7 +24,9 @@ class AuthProvider extends ChangeNotifier {
 
   // QUAN TRỌNG: Không bao giờ tin tưởng quyền Manager khi Offline
   bool get isManager {
-    if (_isOfflineMode) return false; // Offline mặc định là Member/Guest hạn chế
+    if (_isOfflineMode) {
+      return false; // Offline mặc định là Member/Guest hạn chế
+    }
     return _currentUser?.role == 'manager';
   }
 
@@ -61,15 +63,7 @@ class AuthProvider extends ChangeNotifier {
 
       if (_currentUser == null) {
         // Xác định có đang offline không để thông báo chính xác
-        bool offline = true;
-        try {
-          if (Firebase.apps.isNotEmpty &&
-              FirebaseAuth.instance.currentUser != null) {
-            offline = false;
-          }
-        } catch (_) {
-          offline = true;
-        }
+        final bool offline = !Firebase.apps.isNotEmpty;
 
         _errorMessage = offline
             ? 'Ứng dụng đang ngoại tuyến. Vui lòng kết nối mạng để đăng nhập lần đầu.'
@@ -97,11 +91,13 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       final msg = e.toString().toLowerCase();
+      bool offline = false;
       if (msg.contains('network') ||
           msg.contains('socket') ||
           msg.contains('connection')) {
         _errorMessage =
             'Ứng dụng đang ngoại tuyến. Vui lòng thử lại nếu bạn đã từng đăng nhập trước đó.';
+        offline = true;
       } else if (msg.contains('wrong-password') ||
           msg.contains('invalid-credential')) {
         _errorMessage = 'Email hoặc mật khẩu không đúng.';
@@ -111,13 +107,14 @@ class AuthProvider extends ChangeNotifier {
         _errorMessage = 'Đăng nhập thất bại. Vui lòng thử lại.';
       }
       _isLoading = false;
-      _isOfflineMode = true;
+      _isOfflineMode = offline;
       notifyListeners();
       return false;
     }
   }
 
-  Future<bool> register(String name, String email, String password, String role) async {
+  Future<bool> register(
+      String name, String email, String password, String role) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -160,7 +157,8 @@ class AuthProvider extends ChangeNotifier {
         email: user.email,
         password: user.password,
         role: user.role,
-        avatarChar: newName.isNotEmpty ? newName[0].toUpperCase() : user.avatarChar,
+        avatarChar:
+            newName.isNotEmpty ? newName[0].toUpperCase() : user.avatarChar,
       );
       notifyListeners();
     }

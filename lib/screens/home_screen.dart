@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // IMPORTS
 // =============================================================================
 import 'package:flutter/material.dart';
@@ -29,8 +29,8 @@ class HomeScreen extends StatefulWidget {
 // =============================================================================
 // CLASS: _HomeScreenState (Main State Implementation)
 // =============================================================================
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
-  
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   // =============================================================================
   // 1. STATE PROPERTIES & VARIABLES
   // =============================================================================
@@ -52,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    
+
     // Khởi tạo Animation Controller & Curves
     _animCtrl = AnimationController(
       vsync: this,
@@ -229,12 +229,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     });
 
     try {
-      final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
+      final projectProvider =
+          Provider.of<ProjectProvider>(context, listen: false);
       final taskProvider = Provider.of<TaskProvider>(context, listen: false);
 
       await Future.wait([
         projectProvider.loadProjects(user),
-        user.isManager ? taskProvider.loadAllTasks() : taskProvider.loadMyTasks(user.id),
+        user.isManager
+            ? taskProvider.loadAllTasks()
+            : taskProvider.loadMyTasks(user.id),
       ]);
 
       if (!mounted) return;
@@ -250,14 +253,23 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       if (!mounted) return;
       setState(() {
         _isInitialLoading = false;
-        _initialLoadError = 'Không thể tải dữ liệu trang chủ. Vui lòng thử lại.';
+        _initialLoadError =
+            'Không thể tải dữ liệu trang chủ. Vui lòng thử lại.';
       });
     }
   }
 
   String _formatCurrentDate(DateTime date) {
     // Dùng intl để định dạng thứ (vi locale fallback thủ công vì không cần generate)
-    const weekdays = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    const weekdays = [
+      'Chủ Nhật',
+      'Thứ Hai',
+      'Thứ Ba',
+      'Thứ Tư',
+      'Thứ Năm',
+      'Thứ Sáu',
+      'Thứ Bảy'
+    ];
     final dayOfWeek = weekdays[date.weekday % 7];
     return '$dayOfWeek, ${DateFormat('dd/MM/yyyy').format(date)}';
   }
@@ -272,8 +284,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final projectProvider = Provider.of<ProjectProvider>(context);
     final user = authProvider.currentUser;
     final isManager = user?.isManager ?? false;
-    final isPageLoading =
-        _isInitialLoading || taskProvider.isLoading || projectProvider.isLoading;
+    final isPageLoading = _isInitialLoading ||
+        taskProvider.isLoading ||
+        projectProvider.isLoading;
 
     return MainLayout(
       title: 'TaskFlow',
@@ -295,11 +308,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       position: _slideAnim,
                       child: SingleChildScrollView(
                         physics: const _SpringScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 20),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildHeaderSection(user?.name ?? studentName, user?.role ?? 'member'),
+                            _buildHeaderSection(user?.name ?? studentName,
+                                user?.role ?? 'member'),
                             const SizedBox(height: 20),
                             _buildModernSegmentControl(isManager),
                             const SizedBox(height: 20),
@@ -398,7 +413,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 color: AppColors.error.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.error_outline_rounded, color: AppColors.error),
+              child: const Icon(Icons.error_outline_rounded,
+                  color: AppColors.error),
             ),
             const SizedBox(height: 16),
             Text(
@@ -419,7 +435,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ],
@@ -490,7 +507,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isManager ? AppColors.primary.withValues(alpha: 0.08) : Colors.grey.withValues(alpha: 0.1),
+        color: isManager
+            ? AppColors.primary.withValues(alpha: 0.08)
+            : Colors.grey.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -613,15 +632,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     final allTasks = taskProvider.tasks;
     final matchedTasks = allTasks.where(_matchesTask).toList();
-    final matchedProjects = projectProvider.projects.where(_matchesProject).toList();
+    final matchedProjects =
+        projectProvider.projects.where(_matchesProject).toList();
     final visibleTasks = _searchQuery.isEmpty ? allTasks : matchedTasks;
-    final reviewingTasks = visibleTasks.where((t) => t.status == 'reviewing').toList();
+    final reviewingTasks =
+        visibleTasks.where((t) => t.status == 'reviewing').toList();
     final doingTasksCount = allTasks.where((t) => t.status == 'doing').length;
-    final doneTasksCount  = allTasks.where((t) => t.status == 'done').length;
+    final doneTasksCount = allTasks.where((t) => t.status == 'done').length;
     // Đếm số nhân viên duy nhất được gán task (không tính Manager)
-    final memberCount = allTasks.map((t) => t.assignedTo).toSet().where((id) => id.isNotEmpty).length;
+    final memberCount = allTasks
+        .map((t) => t.assignedTo)
+        .toSet()
+        .where((id) => id.isNotEmpty)
+        .length;
 
-    final featuredTask = reviewingTasks.isNotEmpty ? reviewingTasks.first : null;
+    final featuredTask =
+        reviewingTasks.isNotEmpty ? reviewingTasks.first : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -636,17 +662,21 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         const SizedBox(height: 12),
         Row(
           children: [
-            _buildStatCard('TỔNG CỘNG', allTasks.length.toString(), AppColors.primary),
+            _buildStatCard(
+                'TỔNG CỘNG', allTasks.length.toString(), AppColors.primary),
             const SizedBox(width: 10),
-            _buildStatCard('ĐANG LÀM', doingTasksCount.toString(), AppColors.doing),
+            _buildStatCard(
+                'ĐANG LÀM', doingTasksCount.toString(), AppColors.doing),
           ],
         ),
         const SizedBox(height: 10),
         Row(
           children: [
-            _buildStatCard('HOÀN THÀNH', doneTasksCount.toString(), AppColors.done),
+            _buildStatCard(
+                'HOÀN THÀNH', doneTasksCount.toString(), AppColors.done),
             const SizedBox(width: 10),
-            _buildStatCard('THÀNH VIÊN', memberCount.toString(), const Color(0xFF0EA5E9)),
+            _buildStatCard(
+                'THÀNH VIÊN', memberCount.toString(), const Color(0xFF0EA5E9)),
           ],
         ),
         const SizedBox(height: 20),
@@ -680,7 +710,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ? const Center(child: CircularProgressIndicator())
             : matchedProjects.isEmpty
                 ? _buildEmptyState(_searchQuery.isEmpty
-                    ? (isManager ? 'Hãy tạo dự án đầu tiên.' : 'Chưa có dự án nào')
+                    ? (isManager
+                        ? 'Hãy tạo dự án đầu tiên.'
+                        : 'Chưa có dự án nào')
                     : 'Không tìm thấy dự án phù hợp.')
                 : Column(
                     children: matchedProjects
@@ -763,8 +795,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final todoTasks = myTasks.where((t) => t.status == 'todo').toList();
 
     // Lựa chọn task Đang làm gấp nhất để làm Hero, nếu không có lấy task Đang làm thường
-    final Task? featuredTask = urgentDoing.isNotEmpty 
-        ? urgentDoing.first 
+    final Task? featuredTask = urgentDoing.isNotEmpty
+        ? urgentDoing.first
         : (doingTasks.isNotEmpty ? doingTasks.first : null);
 
     return Column(
@@ -790,7 +822,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         todoTasks.isEmpty
             ? _buildEmptyHint('Tuyệt vời! Không có nhiệm vụ cần làm mới.')
             : Column(
-                children: todoTasks.take(3).map((task) => _buildTaskItem(task, false)).toList(),
+                children: todoTasks
+                    .map((task) => _buildTaskItem(task, false))
+                    .toList(),
               ),
       ],
     );
@@ -813,117 +847,123 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF8B5CF6).withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'CẦN PHÊ DUYỆT',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-                child: const Text(
-                  'CẦN PHÊ DUYỆT',
+                if (task.isUrgent)
+                  const Icon(Icons.priority_high_rounded,
+                      color: Colors.white, size: 20),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              task.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20, // Hero title font size
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Người nộp: ${task.assigneeName}',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.9),
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Hạn chót: ${task.deadlineFormatted}',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 12,
-                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-              if (task.isUrgent)
-                const Icon(Icons.priority_high_rounded, color: Colors.white, size: 20),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            task.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20, // Hero title font size
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Người nộp: ${task.assigneeName}',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Hạn chót: ${task.deadlineFormatted}',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  fontSize: 12,
-                ),
-              ),
-              Row(
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      _showRejectDialog(context, taskProvider, task.id);
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Từ chối'),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () async {
-                      final success = await taskProvider.approveTask(task.id);
-                      if (context.mounted && success) {
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: Text('Đã duyệt nhiệm vụ thành công 🎉'),
-                          backgroundColor: AppColors.done,
-                        ));
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF8B5CF6),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        _showRejectDialog(context, taskProvider, task.id);
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: const Text('Từ chối'),
                     ),
-                    child: const Text(
-                      'Duyệt',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () async {
+                        final success = await taskProvider.approveTask(task.id);
+                        if (context.mounted && success) {
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(const SnackBar(
+                            content: Text('Đã duyệt nhiệm vụ thành công 🎉'),
+                            backgroundColor: AppColors.done,
+                          ));
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF8B5CF6),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                      ),
+                      child: const Text(
+                        'Duyệt',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ),);
+    );
   }
 
   Widget _buildManagerFallbackHeroCard() {
@@ -990,100 +1030,105 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       },
       child: Container(
         width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.primaryLight],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppColors.primary, AppColors.primaryLight],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'ĐANG LÀM',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-                child: const Text(
-                  'ĐANG LÀM',
+                if (task.isUrgent)
+                  const Icon(Icons.flash_on, color: Colors.amber, size: 20),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              task.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20, // Hero title font size
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              task.description.isNotEmpty
+                  ? task.description
+                  : 'Không có mô tả chi tiết.',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.9),
+                fontSize: 14,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Hạn chót: ${task.deadlineFormatted}',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 12,
-                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-              if (task.isUrgent)
-                const Icon(Icons.flash_on, color: Colors.amber, size: 20),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            task.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20, // Hero title font size
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            task.description.isNotEmpty ? task.description : 'Không có mô tả chi tiết.',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
-              fontSize: 14,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Hạn chót: ${task.deadlineFormatted}',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  fontSize: 12,
-                ),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  _showStatusUpdateSheet(context, task, false);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: AppColors.primary,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                ElevatedButton(
+                  onPressed: () {
+                    _showStatusUpdateSheet(context, task, false);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.primary,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: const Text(
+                    'Cập nhật',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
                 ),
-                child: const Text(
-                  'Cập nhật',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
-    ),);
+    );
   }
 
   Widget _buildMemberFallbackHeroCard() {
@@ -1225,7 +1270,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           const SizedBox(height: 8),
           Text(
             'Đã hoàn thành $doneCount trên tổng số $totalCount nhiệm vụ được giao.',
-            style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
+            style:
+                const TextStyle(fontSize: 12, color: AppColors.secondaryText),
           ),
           const SizedBox(height: 12),
           ClipRRect(
@@ -1244,15 +1290,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Widget _buildProjectCard(ProjectModel project) {
     final taskProvider = Provider.of<TaskProvider>(context);
-    final stats = taskProvider.projectStats[project.id] ?? {
-      'total': 0,
-      'done': 0,
-      'progress': 0.0,
-      'todo': 0,
-      'doing': 0,
-      'reviewing': 0
-    };
-    final double progressPercent = (stats['progress'] as num?)?.toDouble() ?? 0.0;
+    final stats = taskProvider.projectStats[project.id] ??
+        {
+          'total': 0,
+          'done': 0,
+          'progress': 0.0,
+          'todo': 0,
+          'doing': 0,
+          'reviewing': 0
+        };
+    final double progressPercent =
+        (stats['progress'] as num?)?.toDouble() ?? 0.0;
     final double prog = progressPercent / 100.0;
     final int todoCount = stats['todo'] ?? 0;
     final int doingCount = stats['doing'] ?? 0;
@@ -1273,81 +1321,84 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  project.name,
-                  style: const TextStyle(
-                    fontSize: 16, // title size
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.text,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${(prog * 100).toInt()}%',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: prog,
-              backgroundColor: const Color(0xFFE2E8F0),
-              color: AppColors.primary,
-              minHeight: 6,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              Text(
-                '${project.memberIds.length} thành viên',
-                style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    project.name,
+                    style: const TextStyle(
+                      fontSize: 16, // title size
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${(prog * 100).toInt()}%',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: prog,
+                backgroundColor: const Color(0xFFE2E8F0),
+                color: AppColors.primary,
+                minHeight: 6,
               ),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  _buildProjectStatBadge('Todo', todoCount, AppColors.todo),
-                  _buildProjectStatBadge('Doing', doingCount, AppColors.doing),
-                  _buildProjectStatBadge('Done', doneCount, AppColors.done),
-                ],
-              ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Text(
+                  '${project.memberIds.length} thành viên',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.secondaryText),
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    _buildProjectStatBadge('Todo', todoCount, AppColors.todo),
+                    _buildProjectStatBadge(
+                        'Doing', doingCount, AppColors.doing),
+                    _buildProjectStatBadge('Done', doneCount, AppColors.done),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ),);
+    );
   }
 
   Widget _buildProjectStatBadge(String label, int count, Color color) {
@@ -1359,7 +1410,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       ),
       child: Text(
         '$label: $count',
-        style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold),
+        style:
+            TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -1385,13 +1437,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     // Lọc theo chip trạng thái
     final statusFiltered = _selectedStatusChip == 'Tất cả'
         ? allTasks
-        : allTasks.where((t) =>
-            t.status.toLowerCase() == _selectedStatusChip.toLowerCase()).toList();
+        : allTasks
+            .where((t) =>
+                t.status.toLowerCase() == _selectedStatusChip.toLowerCase())
+            .toList();
 
     // Lọc theo từ khóa tìm kiếm
     final filteredTasks = statusFiltered.where(_matchesTask).toList();
 
-    final reviewingCount = allTasks.where((t) => t.status == 'reviewing').length;
+    final reviewingCount =
+        allTasks.where((t) => t.status == 'reviewing').length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1437,7 +1492,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: sel ? AppColors.primary : Colors.white,
                     borderRadius: BorderRadius.circular(20),
@@ -1490,130 +1546,139 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         );
       },
       child: Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: isReviewing
-            ? Border.all(color: const Color(0xFFFED7AA), width: 1.5)
-            : Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Dòng 1: Tiêu đề + Badge trạng thái
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  task.title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.text,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              _buildStatusBadge(task.status),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Dòng 2: Nhân viên + Hạn
-          Row(
-            children: [
-              const Icon(Icons.person_outline_rounded,
-                  size: 14, color: AppColors.secondaryText),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  task.assigneeName.isNotEmpty ? task.assigneeName : 'Chưa gán',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.secondaryText),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const Icon(Icons.calendar_today_outlined,
-                  size: 12, color: AppColors.secondaryText),
-              const SizedBox(width: 4),
-              Text(
-                task.deadlineShort,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: task.isOverdue() ? AppColors.error : AppColors.secondaryText,
-                  fontWeight: task.isOverdue() ? FontWeight.w700 : FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
-          // Nút Duyệt / Từ chối chỉ hiện khi status = reviewing
-          if (isReviewing) ...[
-            const SizedBox(height: 10),
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            const SizedBox(height: 10),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: isReviewing
+              ? Border.all(color: const Color(0xFFFED7AA), width: 1.5)
+              : Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Dòng 1: Tiêu đề + Badge trạng thái
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                OutlinedButton.icon(
-                  onPressed: () {
-                    _showRejectDialog(context, taskProvider, task.id);
-                  },
-                  icon: const Icon(Icons.close_rounded, size: 14),
-                  label: const Text('Từ chối',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                    side: const BorderSide(color: Color(0xFFFFCDD2)),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                Expanded(
+                  child: Text(
+                    task.title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.text,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final success = await taskProvider.approveTask(task.id);
-                    if (context.mounted && success) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Đã duyệt nhiệm vụ thành công 🎉'),
-                        backgroundColor: AppColors.done,
-                      ));
-                    }
-                  },
-                  icon: const Icon(Icons.check_rounded, size: 14),
-                  label: const Text('Duyệt',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.done,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                _buildStatusBadge(task.status),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Dòng 2: Nhân viên + Hạn
+            Row(
+              children: [
+                const Icon(Icons.person_outline_rounded,
+                    size: 14, color: AppColors.secondaryText),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    task.assigneeName.isNotEmpty
+                        ? task.assigneeName
+                        : 'Chưa gán',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.secondaryText),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Icon(Icons.calendar_today_outlined,
+                    size: 12, color: AppColors.secondaryText),
+                const SizedBox(width: 4),
+                Text(
+                  task.deadlineShort,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: task.isOverdue()
+                        ? AppColors.error
+                        : AppColors.secondaryText,
+                    fontWeight:
+                        task.isOverdue() ? FontWeight.w700 : FontWeight.w400,
                   ),
                 ),
               ],
             ),
+            // Nút Duyệt / Từ chối chỉ hiện khi status = reviewing
+            if (isReviewing) ...[
+              const SizedBox(height: 10),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      _showRejectDialog(context, taskProvider, task.id);
+                    },
+                    icon: const Icon(Icons.close_rounded, size: 14),
+                    label: const Text('Từ chối',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: const BorderSide(color: Color(0xFFFFCDD2)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 6),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final success = await taskProvider.approveTask(task.id);
+                      if (context.mounted && success) {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(const SnackBar(
+                          content: Text('Đã duyệt nhiệm vụ thành công 🎉'),
+                          backgroundColor: AppColors.done,
+                        ));
+                      }
+                    },
+                    icon: const Icon(Icons.check_rounded, size: 14),
+                    label: const Text('Duyệt',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.done,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 6),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
-        ],
+        ),
       ),
-    ),);
+    );
   }
 
   Widget _buildStatusBadge(String status) {
@@ -1690,7 +1755,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: sel ? AppColors.primary : Colors.white,
                     borderRadius: BorderRadius.circular(20),
@@ -1759,7 +1825,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: isOverdue ? AppColors.error.withValues(alpha: 0.08) : const Color(0xFF0F172A).withValues(alpha: 0.04),
+            color: isOverdue
+                ? AppColors.error.withValues(alpha: 0.08)
+                : const Color(0xFF0F172A).withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -1768,7 +1836,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       child: Material(
         color: Colors.transparent,
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           onTap: () {
             Navigator.push(
               context,
@@ -1815,7 +1884,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               children: [
                 _buildMiniTag(_getStatusLabelVi(task.status), sColor),
                 if (isOverdue) _buildMiniTag('Quá hạn ⚠', AppColors.error),
-                if (isManager && task.assigneeName.isNotEmpty) _buildAssigneeChip(task),
+                if (isManager && task.assigneeName.isNotEmpty)
+                  _buildAssigneeChip(task),
               ],
             ),
           ),
@@ -1878,7 +1948,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
           alignment: Alignment.center,
           child: Text(
-            task.assigneeAvatar.isNotEmpty ? task.assigneeAvatar : (task.assigneeName.isNotEmpty ? task.assigneeName[0].toUpperCase() : '?'),
+            task.assigneeAvatar.isNotEmpty
+                ? task.assigneeAvatar
+                : (task.assigneeName.isNotEmpty
+                    ? task.assigneeName[0].toUpperCase()
+                    : '?'),
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -1941,13 +2015,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 ),
               ),
               const SizedBox(height: 20),
-              
+
               // Trạng thái hiện tại & Hạn chót
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: _statusColor(task.status).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
@@ -1971,7 +2046,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 ],
               ),
               const SizedBox(height: 16),
-              
+
               // Tiêu đề & Mô tả nhiệm vụ
               Text(
                 task.title,
@@ -1983,29 +2058,33 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               ),
               const SizedBox(height: 8),
               Text(
-                task.description.isNotEmpty ? task.description : 'Không có mô tả chi tiết.',
+                task.description.isNotEmpty
+                    ? task.description
+                    : 'Không có mô tả chi tiết.',
                 style: const TextStyle(
                   fontSize: 14, // body size
                   color: AppColors.secondaryText,
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Tên thành viên thực hiện
               if (task.assigneeName.isNotEmpty) ...[
                 Row(
                   children: [
-                    const Icon(Icons.person_outline, size: 16, color: AppColors.secondaryText),
+                    const Icon(Icons.person_outline,
+                        size: 16, color: AppColors.secondaryText),
                     const SizedBox(width: 8),
                     Text(
                       'Người thực hiện: ${task.assigneeName}',
-                      style: const TextStyle(fontSize: 14, color: AppColors.secondaryText),
+                      style: const TextStyle(
+                          fontSize: 14, color: AppColors.secondaryText),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
               ],
-              
+
               const Divider(),
               const SizedBox(height: 12),
               const Text(
@@ -2027,15 +2106,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          icon: const Icon(Icons.close, color: Colors.orangeAccent),
-                          label: const Text('Từ chối', style: TextStyle(color: Colors.orangeAccent, fontSize: 14)),
+                          icon: const Icon(Icons.close,
+                              color: Colors.orangeAccent),
+                          label: const Text('Từ chối',
+                              style: TextStyle(
+                                  color: Colors.orangeAccent, fontSize: 14)),
                           onPressed: () async {
                             Navigator.pop(context);
                             _showRejectDialog(context, taskProvider, task.id);
                           },
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Colors.orangeAccent),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
@@ -2044,14 +2127,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.check, color: Colors.white),
-                          label: const Text('Duyệt', style: TextStyle(color: Colors.white, fontSize: 14)),
+                          label: const Text('Duyệt',
+                              style:
+                                  TextStyle(color: Colors.white, fontSize: 14)),
                           onPressed: () async {
-                            final success = await taskProvider.approveTask(task.id);
+                            final success =
+                                await taskProvider.approveTask(task.id);
                             if (context.mounted) {
                               Navigator.pop(context);
                               if (success) {
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                                  content: Text('Đã duyệt nhiệm vụ thành công 🎉'),
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(const SnackBar(
+                                  content:
+                                      Text('Đã duyệt nhiệm vụ thành công 🎉'),
                                   backgroundColor: AppColors.done,
                                 ));
                               }
@@ -2059,7 +2147,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
@@ -2068,19 +2157,26 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   ),
                   const SizedBox(height: 12),
                 ],
-                if (task.status != 'cancelled' && task.status != 'done' && task.status != 'archived')
+                if (task.status != 'cancelled' &&
+                    task.status != 'done' &&
+                    task.status != 'archived')
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      icon: const Icon(Icons.cancel_outlined, color: Colors.redAccent),
-                      label: const Text('Hủy nhiệm vụ', style: TextStyle(color: Colors.redAccent, fontSize: 14)),
+                      icon: const Icon(Icons.cancel_outlined,
+                          color: Colors.redAccent),
+                      label: const Text('Hủy nhiệm vụ',
+                          style:
+                              TextStyle(color: Colors.redAccent, fontSize: 14)),
                       onPressed: () async {
-                        await taskProvider.updateTaskStatus(task.id, 'cancelled');
+                        await taskProvider.updateTaskStatus(
+                            task.id, 'cancelled');
                         if (context.mounted) Navigator.pop(context);
                       },
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Colors.redAccent),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
@@ -2089,37 +2185,44 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      icon: const Icon(Icons.archive_outlined, color: Colors.white),
-                      label: const Text('Lưu trữ nhiệm vụ', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      icon: const Icon(Icons.archive_outlined,
+                          color: Colors.white),
+                      label: const Text('Lưu trữ nhiệm vụ',
+                          style: TextStyle(color: Colors.white, fontSize: 14)),
                       onPressed: () async {
-                        await taskProvider.updateTaskStatus(task.id, 'archived');
+                        await taskProvider.updateTaskStatus(
+                            task.id, 'archived');
                         if (context.mounted) Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueGrey,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
 
-              // -----------------------------------------------------------------
-              // Quyền hạn Member: Todo -> Doing -> Reviewing
-              // -----------------------------------------------------------------
+                // -----------------------------------------------------------------
+                // Quyền hạn Member: Todo -> Doing -> Reviewing
+                // -----------------------------------------------------------------
               ] else ...[
                 if (task.status == 'todo')
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      icon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
-                      label: const Text('Bắt đầu làm', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      icon: const Icon(Icons.play_arrow_rounded,
+                          color: Colors.white),
+                      label: const Text('Bắt đầu làm',
+                          style: TextStyle(color: Colors.white, fontSize: 14)),
                       onPressed: () async {
                         await taskProvider.updateTaskStatus(task.id, 'doing');
                         if (context.mounted) Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
@@ -2130,14 +2233,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       Expanded(
                         child: OutlinedButton.icon(
                           icon: const Icon(Icons.pause, color: Colors.grey),
-                          label: const Text('Tạm dừng', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                          label: const Text('Tạm dừng',
+                              style:
+                                  TextStyle(color: Colors.grey, fontSize: 14)),
                           onPressed: () async {
-                            await taskProvider.updateTaskStatus(task.id, 'todo');
+                            await taskProvider.updateTaskStatus(
+                                task.id, 'todo');
                             if (context.mounted) Navigator.pop(context);
                           },
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Colors.grey),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
@@ -2145,15 +2252,20 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton.icon(
-                          icon: const Icon(Icons.send_rounded, color: Colors.white, size: 16),
-                          label: const Text('Gửi duyệt', style: TextStyle(color: Colors.white, fontSize: 14)),
+                          icon: const Icon(Icons.send_rounded,
+                              color: Colors.white, size: 16),
+                          label: const Text('Gửi duyệt',
+                              style:
+                                  TextStyle(color: Colors.white, fontSize: 14)),
                           onPressed: () async {
-                            await taskProvider.updateTaskStatus(task.id, 'reviewing');
+                            await taskProvider.updateTaskStatus(
+                                task.id, 'reviewing');
                             if (context.mounted) Navigator.pop(context);
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
@@ -2166,7 +2278,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       padding: EdgeInsets.symmetric(vertical: 12.0),
                       child: Text(
                         'Nhiệm vụ đang chờ quản lý phê duyệt.',
-                        style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey, fontSize: 14),
+                        style: TextStyle(
+                            fontStyle: FontStyle.italic,
+                            color: Colors.grey,
+                            fontSize: 14),
                       ),
                     ),
                   )
@@ -2176,7 +2291,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       padding: EdgeInsets.symmetric(vertical: 12.0),
                       child: Text(
                         'Nhiệm vụ đã hoàn thành xuất sắc!',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 14),
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                            fontSize: 14),
                       ),
                     ),
                   )
@@ -2186,7 +2304,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       padding: EdgeInsets.symmetric(vertical: 12.0),
                       child: Text(
                         'Không thể thay đổi trạng thái lúc này.',
-                        style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey, fontSize: 14),
+                        style: TextStyle(
+                            fontStyle: FontStyle.italic,
+                            color: Colors.grey,
+                            fontSize: 14),
                       ),
                     ),
                   ),
@@ -2261,13 +2382,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  void _showRejectDialog(BuildContext context, TaskProvider taskProvider, String taskId) {
+  void _showRejectDialog(
+      BuildContext context, TaskProvider taskProvider, String taskId) {
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Từ chối nhiệm vụ', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Từ chối nhiệm vụ',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2278,10 +2401,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               controller: controller,
               decoration: InputDecoration(
                 hintText: 'Nhập lý do từ chối...',
-                hintStyle: const TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                hintStyle: const TextStyle(
+                    color: AppColors.secondaryText, fontSize: 13),
                 filled: true,
                 fillColor: const Color(0xFFF8F9FD),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -2294,13 +2419,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy', style: TextStyle(color: AppColors.secondaryText)),
+            child: const Text('Hủy',
+                style: TextStyle(color: AppColors.secondaryText)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () async {
               final reason = controller.text.trim();
@@ -2316,7 +2443,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               if (context.mounted) {
                 if (success) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('Đã từ chối nhiệm vụ và chuyển về Cần làm (Todo).'),
+                    content: Text(
+                        'Đã từ chối nhiệm vụ và chuyển về Cần làm (Todo).'),
                     backgroundColor: AppColors.error,
                   ));
                 } else {
@@ -2327,7 +2455,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 }
               }
             },
-            child: const Text('Từ chối', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Từ chối',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -2399,4 +2528,3 @@ class _SpringScrollPhysics extends ScrollPhysics {
         (existingVelocity.abs() / minFlingVelocity).clamp(0.0, 1.0);
   }
 }
-
