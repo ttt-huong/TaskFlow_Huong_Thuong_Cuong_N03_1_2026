@@ -101,6 +101,29 @@ class AuthService {
     }
   }
 
+  Future<UserModel?> getCurrentUser() async {
+    if (!_isFirebaseReady) return null;
+
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) return null;
+
+    try {
+      final doc = await _firestore.collection('users').doc(firebaseUser.uid).get();
+      if (doc.exists && doc.data() != null) {
+        final user = UserModel.fromMap(doc.data()!, doc.id);
+        await _sqliteService.cacheUser(user);
+        return user;
+      }
+    } catch (_) {
+      final localUsers = await _sqliteService.getLocalUsers();
+      return localUsers.firstWhereOrNull(
+        (user) => user.id == firebaseUser.uid || user.email == firebaseUser.email,
+      );
+    }
+
+    return null;
+  }
+
   UserModel? getCurrentUserLocally(Map<String, dynamic>? data) {
     if (_isFirebaseReady && _auth.currentUser != null && data != null) {
       return UserModel.fromMap(data, _auth.currentUser!.uid);
@@ -162,4 +185,3 @@ class AuthService {
     }
   }
 }
-

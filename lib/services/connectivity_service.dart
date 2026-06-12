@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
 /// ConnectivityService — Singleton quản lý trạng thái kết nối mạng.
 ///
@@ -51,15 +51,21 @@ class ConnectivityService {
   }
 
   /// Kiểm tra internet thực sự bằng DNS lookup.
-  /// Trả [false] nếu Firebase chưa init hoặc không phân giải được domain.
   Future<bool> _checkRealInternet() async {
-    if (Firebase.apps.isEmpty) return false;
+    // Trên Web, InternetAddress.lookup không được hỗ trợ, tin vào connectivity_plus
+    if (kIsWeb) return true;
     try {
       final result = await InternetAddress.lookup('firebase.google.com')
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 3));
       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
     } catch (_) {
-      return false;
+      try {
+        final fallback = await InternetAddress.lookup('google.com')
+            .timeout(const Duration(seconds: 3));
+        return fallback.isNotEmpty && fallback[0].rawAddress.isNotEmpty;
+      } catch (_) {
+        return false;
+      }
     }
   }
 

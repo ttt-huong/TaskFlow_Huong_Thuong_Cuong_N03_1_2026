@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/task_model.dart';
 import '../models/project_model.dart';
@@ -7,6 +8,19 @@ import '../models/user_model.dart';
 class FirebaseService {
   bool get _isFirebaseReady => Firebase.apps.isNotEmpty;
   FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+
+  Future<bool> _isCurrentUserManager() async {
+    if (!_isFirebaseReady) return false;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    if (user.email == 'huong@gmail.com') return true;
+    try {
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+      return doc.exists && doc.data()?['role'] == 'manager';
+    } catch (_) {
+      return false;
+    }
+  }
 
   // --- Users ---
   Future<List<UserModel>> getUsers() async {
@@ -32,6 +46,9 @@ class FirebaseService {
   // --- Projects ---
   Future<List<ProjectModel>> getProjects() async {
     if (!_isFirebaseReady) return [];
+    if (!await _isCurrentUserManager()) {
+      throw Exception("Quyền truy cập bị từ chối: Chỉ quản lý mới có quyền xem toàn bộ dự án.");
+    }
     final snapshot = await _firestore.collection('projects').get();
     return snapshot.docs.map((doc) => ProjectModel.fromMap(doc.data(), doc.id)).toList();
   }
@@ -60,8 +77,18 @@ class FirebaseService {
   
   Future<List<Task>> getAllTasks() async {
     if (!_isFirebaseReady) return [];
+    if (!await _isCurrentUserManager()) {
+      throw Exception("Quyền truy cập bị từ chối: Chỉ quản lý mới có quyền xem toàn bộ nhiệm vụ.");
+    }
     final snapshot = await _firestore.collection('tasks').get();
     return snapshot.docs.map((doc) => Task.fromMap(doc.data(), doc.id)).toList();
+  }
+
+  Future<Task?> getTaskById(String taskId) async {
+    if (!_isFirebaseReady) return null;
+    final doc = await _firestore.collection('tasks').doc(taskId).get();
+    if (!doc.exists || doc.data() == null) return null;
+    return Task.fromMap(doc.data()!, doc.id);
   }
 
   Future<void> saveTask(Task task) async {
@@ -79,7 +106,7 @@ class FirebaseService {
     if (!_isFirebaseReady) return;
     await _firestore.collection('tasks').doc(taskId).update({
       'status': status,
-      'updatedAt': DateTime.now().toIso8601String(),
+      'updatedAt': DateTime.now().toUtc().toIso8601String(),
     });
   }
 
@@ -95,7 +122,6 @@ class FirebaseService {
     await _firestore.collection('projects').doc(projectId).delete();
   }
 
-  /// Lấy danh sách Projects mà user là thành viên
   Future<List<ProjectModel>> getProjectsByUser(String userId) async {
     if (!_isFirebaseReady) return [];
     final snapshot = await _firestore
@@ -105,14 +131,5 @@ class FirebaseService {
     return snapshot.docs
         .map((doc) => ProjectModel.fromMap(doc.data(), doc.id))
         .toList();
-  }
-
-  /// Xóa toàn bộ documents trong một collection (dùng cho seed/reset data)
-  Future<void> clearCollection(String collectionName) async {
-    if (!_isFirebaseReady) return;
-    final snapshot = await _firestore.collection(collectionName).get();
-    for (var doc in snapshot.docs) {
-      await doc.reference.delete();
-    }
   }
 }
