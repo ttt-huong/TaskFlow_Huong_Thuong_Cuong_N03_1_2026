@@ -190,7 +190,8 @@ flowchart TD
 
     subgraph Service_Layer ["Tầng Dịch Vụ Hạ Tầng (Service Layer)"]
         SQLiteService["SQLiteService<br>(Local Cache)"]
-        FirebaseService["FirebaseService<br>(Firestore/Auth API)"]
+        AuthService["AuthService<br>(Firebase Auth + user profile cache)"]
+        FirebaseService["FirebaseService<br>(Firestore API)"]
         ConnectivityService["ConnectivityService"]
     end
 
@@ -206,8 +207,11 @@ flowchart TD
     Providers --> ProjRepo
     Providers --> TaskRepo
 
-    AuthRepo & UserRepo & ProjRepo & TaskRepo --> SQLiteService
-    AuthRepo & UserRepo & ProjRepo & TaskRepo --> FirebaseService
+    AuthRepo --> AuthService
+    UserRepo & ProjRepo & TaskRepo --> SQLiteService
+    UserRepo & ProjRepo & TaskRepo --> FirebaseService
+    AuthService --> SQLiteService
+    AuthService --> RemoteDB
     
     %% Luồng đi của ngoại lệ Notification
     Screens --> NotifProvider
@@ -216,7 +220,10 @@ flowchart TD
 
     SQLiteService --> LocalDB
     FirebaseService --> RemoteDB
-    ConnectivityService -.-> |Theo dõi mạng| SQLiteService & FirebaseService
+    ConnectivityService -.-> |Cung cấp trạng thái mạng| Providers
+    ConnectivityService -.-> |Cung cấp trạng thái mạng| UserRepo
+    ConnectivityService -.-> |Cung cấp trạng thái mạng| ProjRepo
+    ConnectivityService -.-> |Cung cấp trạng thái mạng| TaskRepo
 
     %% CSS Styling
     style UI_Layer fill:#f8fafc,stroke:#334155,stroke-width:1.5px
@@ -239,20 +246,31 @@ flowchart TB
     repositories["📂 repositories (Tầng trừu tượng dữ liệu)"]
     services["📂 services (Kết nối SQLite / Firebase)"]
     models["📂 models (Đối tượng dữ liệu / Thực thể)"]
+    widgets["📂 widgets (Widget dùng chung)"]
+    core["📂 core (Màu sắc, text style, tiện ích chung)"]
+    theme["📂 theme (Cấu hình giao diện)"]
 
     screens --> |import| providers
     screens --> |import| models
+    screens --> |import| widgets
+    screens --> |import| core
     providers --> |import| repositories
     providers --> |import| models
+    providers -.-> |một số provider dùng trực tiếp| services
     repositories --> |import| services
     repositories --> |import| models
     services --> |import| models
+    widgets --> |import| core
+    theme --> |import| core
 
     style screens fill:#f8fafc,stroke:#64748b,stroke-width:1.5px
     style providers fill:#eef2ff,stroke:#4f46e5,stroke-width:1.5px
     style repositories fill:#ecfdf5,stroke:#059669,stroke-width:1.5px
     style services fill:#fffbeb,stroke:#d97706,stroke-width:1.5px
     style models fill:#fff5f5,stroke:#e11d48,stroke-width:1.5px
+    style widgets fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px
+    style core fill:#f8fafc,stroke:#334155,stroke-width:1.5px
+    style theme fill:#faf5ff,stroke:#7e22ce,stroke-width:1.5px
 ```
 
 ---
@@ -275,7 +293,7 @@ flowchart LR
     Auth --> |Cung cấp thông tin User| Project
     Auth --> |Cung cấp thông tin User| Task
     Project --> |Chứa danh sách| Task
-    Task --> |Kích hoạt| Notify
+    Task --> |Thay đổi trạng thái / assignee| Notify
     Task --> |Cung cấp dữ liệu nguồn| Stats
     OfflineSync --> |Đồng bộ hai chiều dữ liệu| Project
     OfflineSync --> |Đồng bộ hai chiều dữ liệu| Task
@@ -297,15 +315,20 @@ Sơ đồ chi tiết cơ chế lắng nghe thay đổi nhiệm vụ trực tiế
 ```mermaid
 flowchart TD
     Step1["Firestore: Trạng thái Task thay đổi (CRUD từ xa)"] --> Step2["NotificationProvider: Lắng nghe snapshot qua StreamSubscription"]
-    Step2 --> Step3["NotificationProvider: So sánh trạng thái Task hiện tại và trước đó (previousTasks)"]
+    Step2 --> StepBase{"Snapshot đầu tiên?"}
+    StepBase -- "Có" --> StepBaseSave["Lưu baseline previousTasks<br>không tạo thông báo"]
+    StepBase -- "Không" --> Step3["NotificationProvider: So sánh trạng thái Task hiện tại và trước đó (previousTasks)"]
     Step3 --> Step4{"Trạng thái thay đổi hợp lệ?"}
     Step4 -- "Có (giao việc, từ chối, duyệt, chờ duyệt)" --> Step5["SQLite: Tạo notification_local (cacheNotification)"]
     Step4 -- "Không" --> StepDone([Bỏ qua])
     Step5 --> Step6["UI: Màn hình thông báo / Badge hiển thị tức thì"]
+    StepBaseSave --> StepDone
     Step6 --> StepDone
 
     style Step1 fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px
     style Step2 fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px
+    style StepBase fill:#fffbeb,stroke:#d97706,stroke-width:1.5px
+    style StepBaseSave fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px
     style Step3 fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px
     style Step4 fill:#fffbeb,stroke:#d97706,stroke-width:1.5px
     style Step5 fill:#ecfdf5,stroke:#059669,stroke-width:1.5px
@@ -347,3 +370,190 @@ flowchart TD
     style FirestoreNode fill:#fff,stroke:#64748b,stroke-width:1px
 ```
 
+---
+
+## III. CƠ SỞ DỮ LIỆU
+
+### 8. ERD SQLite (Sơ đồ quan hệ cơ sở dữ liệu cục bộ SQLite)
+
+Sơ đồ biểu diễn cấu trúc bảng vật lý và các khóa ngoại liên kết cục bộ trong tệp cơ sở dữ liệu di động của dự án:
+
+```mermaid
+erDiagram
+    users_local {
+        string id PK
+        string name
+        string email
+        string role
+        string offlineAuthHash
+        string avatarChar
+    }
+    projects_local {
+        string id PK
+        string name
+        string description
+        string memberIds
+        string syncedAt
+        int isSynced
+        string updatedAt
+    }
+    tasks_local {
+        string id PK
+        string title
+        string description
+        string projectId FK
+        string assignedTo
+        string status
+        string deadline
+        string syncedAt
+        string assigneeName
+        string assigneeAvatar
+        int isUrgent
+        string updatedAt
+        int isSynced
+        string rejectionReason
+    }
+    notifications_local {
+        string id PK
+        string userId FK
+        string relatedTaskId FK
+        string title
+        string message
+        string createdAt
+        int isRead
+        string type
+    }
+
+    projects_local ||--o{ tasks_local : "contains (projectId)"
+    users_local ||--o{ tasks_local : "assignedTo"
+    users_local ||--o{ notifications_local : "userId"
+    tasks_local ||--o{ notifications_local : "relatedTaskId"
+```
+
+---
+
+### 9. ERD Firestore (Sơ đồ NoSQL Firestore - Quan hệ logic)
+
+Sơ đồ mô tả cấu trúc các tài liệu (Documents) thuộc các tập hợp (Collections) trong NoSQL Cloud Firestore và liên kết logic giữa chúng:
+
+```mermaid
+erDiagram
+    users {
+        string id PK
+        string name
+        string email
+        string role
+        string avatarChar
+    }
+    projects {
+        string id PK
+        string name
+        string description
+        array_string memberIds
+        timestamp updatedAt
+    }
+    tasks {
+        string id PK
+        string title
+        string description
+        string projectId FK
+        string assignedTo FK
+        string status
+        timestamp deadline
+        string assigneeName
+        string assigneeAvatar
+        boolean isUrgent
+        timestamp updatedAt
+        string rejectionReason
+    }
+
+    projects ||--o{ tasks : "logical contains"
+    users ||--o{ tasks : "assignedTo"
+    projects }o--o{ users : "memberIds references"
+```
+
+---
+
+### 10. Data Dictionary Diagram (Sơ đồ phân rã từ điển dữ liệu)
+
+Sơ đồ phân rã trực quan mô tả chi tiết kiểu dữ liệu và ý nghĩa của từng trường thông tin trong các thực thể:
+
+```mermaid
+mindmap
+  root((Từ điển dữ liệu<br>Data Dictionary))
+    UserModel
+      id : Định danh duy nhất (String / UUID)
+      name : Tên hiển thị người dùng (String)
+      email : Địa chỉ email đăng nhập (String)
+      role : Vai trò (manager / member)
+      password / offlineAuthHash : Mã băm mật khẩu ngoại tuyến (String)
+      avatarChar : Ký tự đại diện người dùng (String)
+    ProjectModel
+      id : Định danh dự án (String / UUID)
+      name : Tên dự án (String)
+      description : Mô tả dự án (String)
+      memberIds : Danh sách ID thành viên (Array String / CSV)
+      updatedAt : Thời gian cập nhật cuối cùng (DateTime)
+    Task
+      id : Định danh công việc (String / UUID)
+      title : Tiêu đề công việc (String)
+      description : Mô tả chi tiết (String)
+      projectId : ID dự án trực thuộc (String)
+      assignedTo : ID thành viên được giao việc (String)
+      status : Trạng thái (todo, doing, reviewing, done, cancelled)
+      deadline : Hạn chót hoàn thành (DateTime)
+      assigneeName : Tên người thực hiện (String)
+      assigneeAvatar : Ký tự đại diện người thực hiện (String)
+      isUrgent : Cờ khẩn cấp (Boolean / Integer)
+      updatedAt : Thời gian cập nhật trạng thái (DateTime)
+      rejectionReason : Lý do từ chối kiểm duyệt (String)
+      isSynced : Cờ đồng bộ offline (Integer / Boolean)
+    NotificationModel
+      id : Định danh thông báo (String / UUID)
+      userId : ID người nhận thông báo (String)
+      relatedTaskId : ID công việc liên quan (String)
+      title : Tiêu đề thông báo (String)
+      message : Nội dung thông báo (String)
+      createdAt : Thời gian tạo thông báo (DateTime)
+      isRead : Trạng thái đã đọc (Boolean / Integer)
+      type : Loại thông báo (task_assigned, task_rejected, task_approved, task_review_submitted)
+```
+
+---
+
+### 11. Offline Sync Database Diagram (Sơ đồ đồng bộ dữ liệu ngoại tuyến)
+
+Sơ đồ biểu diễn luồng đồng bộ hai chiều giữa Firestore và SQLite dựa trên cờ trạng thái đồng bộ (`isSynced`) và nhãn thời gian cập nhật (`updatedAt`):
+
+```mermaid
+flowchart LR
+    %% Triển khai đồng bộ dữ liệu ngoại tuyến
+    subgraph ServerNode ["Đám mây Firestore"]
+        FS_Doc["Firestore Document<br>(updatedAt)"]
+    end
+
+    subgraph SyncEngine ["Cơ chế Đồng bộ (Sync Logic)"]
+        direction TB
+        ConflictCheck{"So sánh updatedAt<br>(Local vs Server)"}
+        UnsyncedCheck{"Quét SQLite có<br>isSynced = 0?"}
+    end
+
+    subgraph LocalNode ["SQLite Local Cache"]
+        SQL_Row["SQLite Table Row<br>(isSynced, updatedAt)"]
+    end
+
+    %% Luồng đẩy lên (Push offline modifications)
+    SQL_Row --> |1. Tìm bản ghi có isSynced = 0| UnsyncedCheck
+    UnsyncedCheck --> |2. Lưu Firestore & chuyển isSynced = 1| FS_Doc
+
+    %% Luồng kéo về & giải quyết xung đột (Pull & Resolve Conflicts)
+    FS_Doc --> |3. Đọc dữ liệu server| ConflictCheck
+    SQL_Row --> |3. Đọc dữ liệu local| ConflictCheck
+    ConflictCheck --> |4a. Server mới hơn: Ghi đè vào SQLite & đặt isSynced = 1| SQL_Row
+    ConflictCheck --> |4b. Local mới hơn: Đẩy lên Firestore & đặt isSynced = 1| FS_Doc
+
+    %% CSS Styling
+    style ServerNode fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px
+    style LocalNode fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px
+    style SyncEngine fill:#fffbeb,stroke:#d97706,stroke-width:1.5px
+```
