@@ -35,6 +35,8 @@ class Task {
   String assigneeAvatar; // Ký tự chữ cái làm avatar tròn (Ví dụ: B, C)
   bool isUrgent; // Cờ báo công việc khẩn cấp (Hiển thị biểu tượng lịch màu đỏ)
   DateTime updatedAt; // Ngày cập nhật gần nhất để xử lý xung đột đồng bộ
+  String rejectionReason; // Lý do từ chối công việc
+  int isSynced; // Cờ trạng thái đồng bộ SQLite: 0 (chưa sync), 1 (đã sync)
 
   // ================== DANH SÁCH TRẠNG THÁI HỢP LỆ ==================
 
@@ -46,13 +48,13 @@ class Task {
   /// Ma trận chuyển đổi trạng thái hợp lệ (Adjacency List)
   /// - todo → doing (Member nhận việc), cancelled (Manager hủy)
   /// - doing → reviewing (Member nộp bài), todo (quay lại), cancelled (Manager hủy)
-  /// - reviewing → done (Manager duyệt), doing (Manager từ chối), cancelled (Manager hủy)
+  /// - reviewing → done (Manager duyệt), todo (Manager từ chối), cancelled (Manager hủy)
   /// - done → archived (Manager lưu trữ)
   /// - cancelled, archived → không chuyển tiếp được (Trạng thái cuối cùng)
   static final Map<String, Set<String>> allowedTransitions = {
     'todo': {'doing', 'cancelled'},
     'doing': {'reviewing', 'todo', 'cancelled'},
-    'reviewing': {'done', 'doing', 'cancelled'},
+    'reviewing': {'done', 'todo', 'cancelled'},
     'done': {'archived'},
     'cancelled': <String>{},
     'archived': <String>{},
@@ -73,7 +75,9 @@ class Task {
     this.assigneeAvatar = '',
     this.isUrgent = false,
     DateTime? updatedAt,
-  }) : updatedAt = updatedAt ?? DateTime.now();
+    this.rejectionReason = '',
+    this.isSynced = 1,
+  }) : updatedAt = (updatedAt ?? DateTime.now()).toUtc();
 
   // ================== PHƯƠNG THỨC ==================
 
@@ -91,7 +95,9 @@ class Task {
       assigneeName: data['assigneeName'] ?? '',
       assigneeAvatar: data['assigneeAvatar'] ?? '',
       isUrgent: (data['isUrgent'] == 1 || data['isUrgent'] == true),
-      updatedAt: DateTime.tryParse(data['updatedAt'] ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(data['updatedAt'] ?? '')?.toUtc() ?? DateTime.now().toUtc(),
+      rejectionReason: data['rejectionReason'] ?? '',
+      isSynced: data['isSynced'] ?? 1,
     );
   }
 
@@ -109,7 +115,40 @@ class Task {
       'assigneeAvatar': assigneeAvatar,
       'isUrgent': isUrgent,
       'updatedAt': updatedAt.toIso8601String(),
+      'rejectionReason': rejectionReason,
     };
+  }
+
+  Task copyWith({
+    String? id,
+    String? title,
+    String? description,
+    String? projectId,
+    String? assignedTo,
+    String? status,
+    DateTime? deadline,
+    String? assigneeName,
+    String? assigneeAvatar,
+    bool? isUrgent,
+    DateTime? updatedAt,
+    String? rejectionReason,
+    int? isSynced,
+  }) {
+    return Task(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      projectId: projectId ?? this.projectId,
+      assignedTo: assignedTo ?? this.assignedTo,
+      status: status ?? this.status,
+      deadline: deadline ?? this.deadline,
+      assigneeName: assigneeName ?? this.assigneeName,
+      assigneeAvatar: assigneeAvatar ?? this.assigneeAvatar,
+      isUrgent: isUrgent ?? this.isUrgent,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
+      isSynced: isSynced ?? this.isSynced,
+    );
   }
 
   /// Kiểm tra xem có thể chuyển sang trạng thái mới hay không
@@ -140,22 +179,22 @@ class Task {
 
   /// Kiểm tra task có quá hạn không (không cần try/catch vì deadline đã là DateTime)
   bool isOverdue() {
-    return status != 'done' && DateTime.now().isAfter(deadline);
+    return status != 'done' && DateTime.now().isAfter(deadline.toLocal());
   }
 
   /// Định dạng deadline hiển thị dạng dd/MM/yyyy dùng package intl
   String get deadlineFormatted {
-    return DateFormat('dd/MM/yyyy').format(deadline);
+    return DateFormat('dd/MM/yyyy').format(deadline.toLocal());
   }
 
   /// Định dạng ngày rút gọn: dd/MM (hiển thị trên card nhỏ)
   String get deadlineShort {
-    return DateFormat('dd/MM').format(deadline);
+    return DateFormat('dd/MM').format(deadline.toLocal());
   }
 
   /// Định dạng đầy đủ có giờ: HH:mm dd/MM/yyyy
   String get deadlineFull {
-    return DateFormat('HH:mm dd/MM/yyyy').format(deadline);
+    return DateFormat('HH:mm dd/MM/yyyy').format(deadline.toLocal());
   }
 
   /// Override toString để hiển thị nhanh

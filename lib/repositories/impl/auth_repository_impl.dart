@@ -22,7 +22,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<UserModel?> getCurrentUser() async {
-    return null;
+    return await _authService.getCurrentUser();
   }
 
   @override
@@ -43,4 +43,3 @@ class AuthRepositoryImpl implements AuthRepository {
     );
   }
 }
-

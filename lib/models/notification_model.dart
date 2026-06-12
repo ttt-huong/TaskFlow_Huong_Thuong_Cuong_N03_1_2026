@@ -1,5 +1,7 @@
 class NotificationModel {
   final String id;
+  final String userId;
+  final String? relatedTaskId;
   final String title;
   final String message;
   final DateTime createdAt;
@@ -8,6 +10,8 @@ class NotificationModel {
 
   NotificationModel({
     required this.id,
+    required this.userId,
+    this.relatedTaskId,
     required this.title,
     required this.message,
     required this.createdAt,
@@ -18,6 +22,8 @@ class NotificationModel {
   factory NotificationModel.fromMap(Map<String, dynamic> map) {
     return NotificationModel(
       id: map['id'],
+      userId: map['userId'] ?? '',
+      relatedTaskId: map['relatedTaskId'],
       title: map['title'],
       message: map['message'],
       createdAt: DateTime.parse(map['createdAt']),
@@ -29,6 +35,8 @@ class NotificationModel {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'userId': userId,
+      'relatedTaskId': relatedTaskId,
       'title': title,
       'message': message,
       'createdAt': createdAt.toIso8601String(),
@@ -40,6 +48,8 @@ class NotificationModel {
   NotificationModel copyWith({bool? isRead}) {
     return NotificationModel(
       id: id,
+      userId: userId,
+      relatedTaskId: relatedTaskId,
       title: title,
       message: message,
       createdAt: createdAt,

@@ -14,12 +14,31 @@ class ProjectRepositoryImpl implements ProjectRepository {
   Future<List<ProjectModel>> getProjects() async {
     if (_isOnline) {
       try {
-        final projects = await _firebaseService.getProjects();
-        for (var p in projects) {
-          // Cache từ server → đánh dấu đã đồng bộ
-          await _sqliteService.cacheProject(p, isSynced: true);
+        final serverProjects = await _firebaseService.getProjects();
+        final localProjects = await _sqliteService.getLocalProjects();
+
+        // Dọn dẹp local projects bị xóa trên server
+        final serverIds = serverProjects.map((p) => p.id).toSet();
+        for (var lp in localProjects) {
+          if (lp.isSynced == 1 && !serverIds.contains(lp.id)) {
+            await _sqliteService.deleteProject(lp.id);
+          }
         }
-        return projects;
+
+        final updatedLocalProjects = await _sqliteService.getLocalProjects();
+        final localMap = {for (var p in updatedLocalProjects) p.id: p};
+
+        for (var p in serverProjects) {
+          final localProject = localMap[p.id];
+          if (localProject != null &&
+              localProject.isSynced == 0 &&
+              localProject.updatedAt.isAfter(p.updatedAt)) {
+            // Giữ bản local mới hơn chưa sync, không ghi đè
+          } else {
+            await _sqliteService.cacheProject(p, isSynced: true);
+          }
+        }
+        return await _sqliteService.getLocalProjects();
       } catch (e) {
         return _sqliteService.getLocalProjects();
       }
@@ -30,8 +49,38 @@ class ProjectRepositoryImpl implements ProjectRepository {
 
   @override
   Future<List<ProjectModel>> getProjectsByUser(String userId) async {
-    final projects = await getProjects();
-    return projects.where((p) => p.memberIds.contains(userId)).toList();
+    if (_isOnline) {
+      try {
+        final serverProjects = await _firebaseService.getProjectsByUser(userId);
+        final localProjects = await _sqliteService.getLocalProjects();
+
+        // Dọn dẹp local projects mà user này không còn thuộc về trên server nữa
+        final serverIds = serverProjects.map((p) => p.id).toSet();
+        for (var lp in localProjects) {
+          if (lp.isSynced == 1 && lp.memberIds.contains(userId) && !serverIds.contains(lp.id)) {
+            await _sqliteService.deleteProject(lp.id);
+          }
+        }
+
+        final updatedLocalProjects = await _sqliteService.getLocalProjects();
+        final localMap = {for (var p in updatedLocalProjects) p.id: p};
+
+        for (var p in serverProjects) {
+          final localProject = localMap[p.id];
+          if (localProject != null &&
+              localProject.isSynced == 0 &&
+              localProject.updatedAt.isAfter(p.updatedAt)) {
+            // Giữ bản local mới hơn chưa sync, không ghi đè
+          } else {
+            await _sqliteService.cacheProject(p, isSynced: true);
+          }
+        }
+      } catch (e) {
+        // Bỏ qua lỗi
+      }
+    }
+    final localProjects = await _sqliteService.getLocalProjects();
+    return localProjects.where((p) => p.memberIds.contains(userId)).toList();
   }
 
   @override
@@ -46,9 +95,15 @@ class ProjectRepositoryImpl implements ProjectRepository {
 
   @override
   Future<void> addProject(ProjectModel project) async {
+    project.updatedAt = DateTime.now().toUtc();
     if (_isOnline) {
-      await _firebaseService.saveProject(project);
-      await _sqliteService.cacheProject(project, isSynced: true);
+      try {
+        await _firebaseService.saveProject(project);
+        await _sqliteService.cacheProject(project, isSynced: true);
+      } catch (e) {
+        // Ghi Firebase thất bại -> fallback lưu SQLite với isSynced = 0 để đồng bộ sau
+        await _sqliteService.cacheProject(project, isSynced: false);
+      }
     } else {
       // Offline → lưu local với isSynced=0, chờ sync khi có mạng
       await _sqliteService.cacheProject(project, isSynced: false);
@@ -57,9 +112,15 @@ class ProjectRepositoryImpl implements ProjectRepository {
 
   @override
   Future<void> updateProject(ProjectModel project) async {
+    project.updatedAt = DateTime.now().toUtc();
     if (_isOnline) {
-      await _firebaseService.saveProject(project);
-      await _sqliteService.cacheProject(project, isSynced: true);
+      try {
+        await _firebaseService.saveProject(project);
+        await _sqliteService.cacheProject(project, isSynced: true);
+      } catch (e) {
+        // Ghi Firebase thất bại -> fallback lưu SQLite với isSynced = 0 để đồng bộ sau
+        await _sqliteService.cacheProject(project, isSynced: false);
+      }
     } else {
       // Offline → cập nhật local, đánh dấu chờ sync
       await _sqliteService.cacheProject(project, isSynced: false);
@@ -68,9 +129,10 @@ class ProjectRepositoryImpl implements ProjectRepository {
 
   @override
   Future<void> deleteProject(String id) async {
-    if (_isOnline) {
-      await _firebaseService.deleteProject(id);
+    if (!_isOnline) {
+      throw Exception("Không thể xóa dự án khi ngoại tuyến.");
     }
+    await _firebaseService.deleteProject(id);
     await _sqliteService.deleteProject(id);
   }
 
