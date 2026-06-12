@@ -330,7 +330,7 @@ class _MemberTasksScreenState extends State<MemberTasksScreen> {
                                                 const Icon(Icons.calendar_today_rounded, size: 12, color: AppColors.secondaryText),
                                                 const SizedBox(width: 4),
                                                 Text(
-                                                  DateFormat('dd/MM').format(task.deadline),
+                                                  DateFormat('dd/MM').format(task.deadline.toLocal()),
                                                   style: TextStyle(
                                                     color: task.isOverdue() ? AppColors.error : AppColors.secondaryText,
                                                     fontSize: 11,

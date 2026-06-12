@@ -26,6 +26,7 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
     if (auth.currentUser != null) {
       final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
       await projectProvider.loadProjects(auth.currentUser!);
+      await projectProvider.loadAllUsers();
       
       // Nạp thống kê cho các dự án sau khi tải dự án xong
       final projectIds = projectProvider.projects.map((p) => p.id).toList();
@@ -175,9 +176,9 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
                                         child: const Icon(Icons.folder_open_rounded, size: 48, color: AppColors.secondaryText),
                                       ),
                                       const SizedBox(height: 16),
-                                      const Text(
-                                        'Không có dự án nào',
-                                        style: TextStyle(
+                                      Text(
+                                        isManager ? 'Hãy tạo dự án đầu tiên.' : 'Không có dự án nào',
+                                        style: const TextStyle(
                                           color: AppColors.text,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16,
@@ -347,63 +348,128 @@ class _ProjectListScreenState extends State<ProjectListScreen> {
     final nameController = TextEditingController();
     final descController = TextEditingController();
 
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+
+    final selectableUsers = projectProvider.allUsers
+        .where((u) => currentUser == null || u.id != currentUser.id)
+        .toList();
+
+    final List<String> selectedMemberIds = [];
+
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text(
-            'Tạo dự án mới',
-            style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Tên dự án',
-                  labelStyle: TextStyle(color: AppColors.secondaryText),
-                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text(
+                'Tạo dự án mới',
+                style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Tên dự án',
+                        labelStyle: TextStyle(color: AppColors.secondaryText),
+                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: descController,
+                      decoration: const InputDecoration(
+                        labelText: 'Mô tả dự án',
+                        labelStyle: TextStyle(color: AppColors.secondaryText),
+                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Chọn thành viên tham gia:',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.text),
+                    ),
+                    const SizedBox(height: 8),
+                    Flexible(
+                      child: SizedBox(
+                        height: 150,
+                        child: selectableUsers.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'Không tìm thấy thành viên khác.',
+                                  style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
+                                ),
+                              )
+                            : ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: selectableUsers.length,
+                                itemBuilder: (context, index) {
+                                  final user = selectableUsers[index];
+                                  final isChecked = selectedMemberIds.contains(user.id);
+                                  return CheckboxListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    activeColor: AppColors.primary,
+                                    title: Text(user.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                                    subtitle: Text(user.email, style: const TextStyle(fontSize: 11, color: AppColors.secondaryText)),
+                                    value: isChecked,
+                                    onChanged: (val) {
+                                      setState(() {
+                                        if (val == true) {
+                                          selectedMemberIds.add(user.id);
+                                        } else {
+                                          selectedMemberIds.remove(user.id);
+                                        }
+                                      });
+                                    },
+                                  );
+                                },
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: descController,
-                decoration: const InputDecoration(
-                  labelText: 'Mô tả dự án',
-                  labelStyle: TextStyle(color: AppColors.secondaryText),
-                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Hủy', style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.bold)),
                 ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Hủy', style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.bold)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                elevation: 0,
-              ),
-              onPressed: () async {
-                final name = nameController.text.trim();
-                final desc = descController.text.trim();
-                if (name.isNotEmpty) {
-                  await Provider.of<ProjectProvider>(context, listen: false)
-                      .createProject(name, desc, []);
-                  if (context.mounted) Navigator.pop(context);
-                }
-              },
-              child: const Text('Tạo', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    final name = nameController.text.trim();
+                    final desc = descController.text.trim();
+                    if (name.isNotEmpty) {
+                      final List<String> finalMemberIds = [];
+                      if (currentUser != null) {
+                        finalMemberIds.add(currentUser.id);
+                      }
+                      finalMemberIds.addAll(selectedMemberIds);
+
+                      await projectProvider.createProject(name, desc, finalMemberIds);
+                      if (context.mounted) Navigator.pop(context);
+                    }
+                  },
+                  child: const Text('Tạo', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
         );
       },
     );

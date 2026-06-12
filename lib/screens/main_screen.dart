@@ -39,7 +39,7 @@ class _MainScreenState extends State<MainScreen> {
       return const [
         _NavItem(Icons.home_outlined, Icons.home_rounded, 'Trang chủ'),
         _NavItem(Icons.folder_outlined, Icons.folder_rounded, 'Dự án'),
-        _NavItem(Icons.group_outlined, Icons.group_rounded, 'Nhóm'),
+        _NavItem(Icons.group_outlined, Icons.group_rounded, 'Thành viên'),
         _NavItem(Icons.person_outline_rounded, Icons.person_rounded, 'Hồ sơ'),
       ];
     } else {
@@ -82,9 +82,12 @@ class _MainScreenState extends State<MainScreen> {
             final projects = projectProvider.projects;
             final allUsers = projectProvider.allUsers;
 
-            // Lọc assignee theo thành viên dự án đã chọn
+            // Lọc assignee: chỉ hiện Member (không hiện Manager)
+            // và lọc thêm theo thành viên của dự án đã chọn
+            final membersOnly = allUsers.where((u) => !u.isManager).toList();
+
             final assignableUsers = selectedProjectId == null
-                ? allUsers
+                ? membersOnly
                 : () {
                     final selectedProject = projects.firstWhere(
                       (p) => p.id == selectedProjectId,
@@ -92,7 +95,7 @@ class _MainScreenState extends State<MainScreen> {
                           ? throw Exception('no project')
                           : projects.first,
                     );
-                    return allUsers
+                    return membersOnly
                         .where((u) => selectedProject.memberIds.contains(u.id))
                         .toList();
                   }();
@@ -244,7 +247,10 @@ class _MainScreenState extends State<MainScreen> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Flexible(child: Text(u.name, overflow: TextOverflow.ellipsis)),
+                              SizedBox(
+                                width: 180,
+                                child: Text(u.name, overflow: TextOverflow.ellipsis),
+                              ),
                             ],
                           ),
                         )).toList(),

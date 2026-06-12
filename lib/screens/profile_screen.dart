@@ -5,7 +5,6 @@ import '../providers/auth_provider.dart';
 import '../providers/project_provider.dart';
 import '../providers/task_provider.dart';
 import '../core/app_colors.dart';
-import '../services/firebase_seed_data.dart';
 import 'edit_profile_screen.dart';
 import 'notification_screen.dart';
 
@@ -199,72 +198,6 @@ class ProfileScreen extends StatelessWidget {
                         onTap: () => _showDarkModeDialog(context),
                       ),
                     ]),
-
-                    // ===== DEBUG (Manager only) =====
-                    if (userRole == 'manager') ...[
-                      const SizedBox(height: 16),
-                      _sectionLabel('Dữ liệu (Debug)'),
-                      const SizedBox(height: 10),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.orange.withValues(alpha: 0.05),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            _buildOption(
-                              icon: Icons.add_to_drive_outlined,
-                              title: 'Seed Firebase Data',
-                              subtitle: 'Tạo dữ liệu mẫu',
-                              iconColor: Colors.orange,
-                              onTap: () async {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Đang tạo dữ liệu mẫu...')),
-                                );
-                                final success = await FirebaseSeedData.seedAll();
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(success ? 'Tạo dữ liệu thành công!' : 'Tạo dữ liệu thất bại!'),
-                                      backgroundColor: success ? AppColors.done : AppColors.error,
-                                    ),
-                                  );
-                                }
-                              },
-                            ),
-                            const Divider(height: 1, indent: 56),
-                            _buildOption(
-                              icon: Icons.delete_forever_outlined,
-                              title: 'Clear Firebase Data',
-                              subtitle: 'Xóa toàn bộ dữ liệu',
-                              iconColor: AppColors.error,
-                              onTap: () async {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Đang xóa dữ liệu...')),
-                                );
-                                final success = await FirebaseSeedData.clearAll();
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(success ? 'Xóa dữ liệu thành công!' : 'Xóa dữ liệu thất bại!'),
-                                      backgroundColor: success ? AppColors.done : AppColors.error,
-                                    ),
-                                  );
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
 
                     const SizedBox(height: 28),
 

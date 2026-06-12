@@ -5,6 +5,11 @@ import '../models/task_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/task_provider.dart';
 import '../core/app_colors.dart';
+import '../providers/notification_provider.dart';
+import '../providers/project_provider.dart';
+import '../models/project_model.dart';
+import '../models/user_model.dart';
+
 
 class TaskDetailScreen extends StatefulWidget {
   final Task task;
@@ -115,7 +120,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final taskProvider = Provider.of<TaskProvider>(context);
-    
+
     // Lấy task mới nhất từ Provider để cập nhật UI ngay lập tức
     final currentTask = taskProvider.tasks.firstWhere(
       (t) => t.id == widget.task.id,
@@ -148,11 +153,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           if (isManager) ...[
             IconButton(
               icon: const Icon(Icons.edit, color: AppColors.primary),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Tính năng chỉnh sửa đang được phát triển')),
-                );
-              },
+              onPressed: () => _showEditTaskDialog(context, currentTask),
             ),
             IconButton(
               icon: const Icon(Icons.delete, color: AppColors.error),
@@ -246,7 +247,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   _buildInfoRow(
                     Icons.calendar_today_rounded,
                     'Hạn chót',
-                    DateFormat('HH:mm - dd/MM/yyyy').format(currentTask.deadline),
+                    DateFormat('HH:mm - dd/MM/yyyy').format(currentTask.deadline.toLocal()),
                     currentTask.isOverdue() ? AppColors.error : AppColors.text,
                   ),
                   const Padding(
@@ -266,7 +267,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                   _buildInfoRow(
                     Icons.update_rounded,
                     'Cập nhật lần cuối',
-                    DateFormat('HH:mm - dd/MM/yyyy').format(currentTask.updatedAt),
+                    DateFormat('HH:mm - dd/MM/yyyy').format(currentTask.updatedAt.toLocal()),
                     AppColors.secondaryText,
                   ),
                 ],
@@ -274,6 +275,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
             ),
             
             const SizedBox(height: 24),
+
+            if (currentTask.rejectionReason.trim().isNotEmpty &&
+                currentTask.status.toLowerCase() == 'todo') ...[
+              _buildRejectBanner(currentTask.rejectionReason.trim()),
+              const SizedBox(height: 24),
+            ],
+
             const Text(
               'Mô tả chi tiết',
               style: TextStyle(
@@ -345,6 +353,49 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildRejectBanner(String reason) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.assignment_late_rounded, color: AppColors.error),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Lý do từ chối',
+                  style: TextStyle(
+                    color: AppColors.error,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  reason,
+                  style: const TextStyle(
+                    color: AppColors.text,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -442,7 +493,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                             if (step.time != null) ...[
                               const SizedBox(width: 8),
                               Text(
-                                DateFormat('HH:mm - dd/MM').format(step.time!),
+                                DateFormat('HH:mm - dd/MM').format(step.time!.toLocal()),
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: AppColors.secondaryText,
@@ -494,9 +545,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     if (isManager && status == 'reviewing') {
       return Row(
         children: [
-          Expanded(child: _buildFullWidthButton('TỪ CHỐI', AppColors.doing, () => _updateStatus(context, provider, currentTask, 'doing'))),
+          Expanded(child: _buildFullWidthButton('Từ chối', AppColors.error, () => _showRejectDialog(context, provider, currentTask.id))),
           const SizedBox(width: 16),
-          Expanded(child: _buildFullWidthButton('DUYỆT', AppColors.done, () => _updateStatus(context, provider, currentTask, 'done'))),
+          Expanded(child: _buildFullWidthButton('DUYỆT', AppColors.done, () => _approveTask(context, provider, currentTask.id))),
         ],
       );
     }
@@ -560,6 +611,84 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     }
   }
 
+  Future<void> _approveTask(BuildContext context, TaskProvider provider, String taskId) async {
+    final success = await provider.approveTask(taskId);
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
+      content: Text(success
+          ? 'Đã duyệt nhiệm vụ thành công.'
+          : 'Không thể duyệt nhiệm vụ này.'),
+      backgroundColor: success ? AppColors.done : AppColors.error,
+    ));
+  }
+
+  void _showRejectDialog(BuildContext context, TaskProvider provider, String taskId) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Từ chối nhiệm vụ',
+          style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 3,
+          maxLines: 4,
+          decoration: InputDecoration(
+            hintText: 'Nhập lý do từ chối...',
+            filled: true,
+            fillColor: const Color(0xFFF8FAFC),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade200),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              final reason = controller.text.trim();
+              if (reason.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Vui lòng nhập lý do từ chối.'),
+                  backgroundColor: AppColors.error,
+                ));
+                return;
+              }
+
+              Navigator.pop(ctx);
+              final success = await provider.rejectTask(taskId, reason);
+              if (!mounted) return;
+
+              ScaffoldMessenger.of(this.context).showSnackBar(SnackBar(
+                content: Text(success
+                    ? 'Đã từ chối nhiệm vụ và gửi lý do cho thành viên.'
+                    : 'Không thể từ chối nhiệm vụ này.'),
+                backgroundColor: success ? AppColors.error : AppColors.error,
+              ));
+            },
+            child: const Text('Từ chối', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _confirmDelete(BuildContext context, TaskProvider provider, String taskId) {
     showDialog(
       context: context,
@@ -585,6 +714,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
               Navigator.pop(ctx);
               await provider.deleteTask(taskId);
               if (context.mounted) {
+                Provider.of<NotificationProvider>(context, listen: false).deleteNotificationsByTaskId(taskId);
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                   content: Text('Đã xóa nhiệm vụ thành công'),
@@ -598,7 +728,200 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       ),
     );
   }
+
+  void _showEditTaskDialog(BuildContext context, Task task) {
+    final titleController = TextEditingController(text: task.title);
+    final descController = TextEditingController(text: task.description);
+
+    final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
+    final currentProject = projectProvider.projects.firstWhere(
+      (p) => p.id == task.projectId,
+      orElse: () => ProjectModel(id: task.projectId, name: '', description: '', memberIds: []),
+    );
+    final List<UserModel> projectMembers = projectProvider.allUsers
+        .where((u) => currentProject.memberIds.contains(u.id))
+        .toList();
+
+    String? selectedUser = projectMembers.any((m) => m.id == task.assignedTo)
+        ? task.assignedTo
+        : (projectMembers.isNotEmpty ? projectMembers.first.id : null);
+
+    DateTime selectedDeadline = task.deadline;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Chỉnh sửa nhiệm vụ', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Tiêu đề',
+                        labelStyle: TextStyle(color: AppColors.secondaryText),
+                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: descController,
+                      decoration: const InputDecoration(
+                        labelText: 'Mô tả',
+                        labelStyle: TextStyle(color: AppColors.secondaryText),
+                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Hạn chót:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.text)),
+                        TextButton.icon(
+                          icon: const Icon(Icons.calendar_today, size: 14, color: AppColors.primary),
+                          label: Text(
+                            DateFormat('HH:mm dd/MM/yyyy').format(selectedDeadline.toLocal()),
+                            style: const TextStyle(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.bold),
+                          ),
+                          onPressed: () async {
+                            final date = await showDatePicker(
+                              context: context,
+                              initialDate: selectedDeadline.toLocal(),
+                              firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                              lastDate: DateTime.now().add(const Duration(days: 3650)),
+                            );
+                            if (date != null) {
+                              if (!context.mounted) return;
+                              final time = await showTimePicker(
+                                context: context,
+                                initialTime: TimeOfDay.fromDateTime(selectedDeadline.toLocal()),
+                              );
+                              if (time != null) {
+                                setState(() {
+                                  selectedDeadline = DateTime(
+                                    date.year,
+                                    date.month,
+                                    date.day,
+                                    time.hour,
+                                    time.minute,
+                                  );
+                                });
+                              }
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (projectMembers.isEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.doing.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded, color: AppColors.doing, size: 16),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Dự án chưa có thành viên để gán nhiệm vụ.',
+                                style: TextStyle(color: AppColors.doing, fontSize: 11, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else ...[
+                      const Text('Giao cho thành viên:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.text)),
+                      const SizedBox(height: 6),
+                      DropdownButtonFormField<String>(
+                        dropdownColor: Colors.white,
+                        value: selectedUser,
+                        hint: const Text('Chọn thành viên gán task'),
+                        items: projectMembers.map((u) {
+                          return DropdownMenuItem<String>(
+                            value: u.id,
+                            child: Text(u.name, style: const TextStyle(fontSize: 14)),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            selectedUser = val;
+                          });
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Hủy', style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.bold)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    final title = titleController.text.trim();
+                    final desc = descController.text.trim();
+                    if (title.isNotEmpty) {
+                      String assigneeName = '';
+                      String assigneeAvatar = '?';
+                      if (selectedUser != null) {
+                        final user = projectMembers.firstWhere(
+                          (u) => u.id == selectedUser,
+                          orElse: () => UserModel(id: selectedUser!, name: task.assigneeName, email: '', password: '', role: 'member'),
+                        );
+                        assigneeName = user.name;
+                        assigneeAvatar = user.name.isNotEmpty ? user.name.substring(0, 1).toUpperCase() : '?';
+                      }
+
+                      final updatedTask = task.copyWith(
+                        title: title,
+                        description: desc,
+                        deadline: selectedDeadline.toUtc(),
+                        assignedTo: selectedUser ?? '',
+                        assigneeName: assigneeName,
+                        assigneeAvatar: assigneeAvatar,
+                      );
+
+                      await Provider.of<TaskProvider>(context, listen: false).editTask(updatedTask);
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Đã cập nhật nhiệm vụ thành công 🎉'),
+                          backgroundColor: AppColors.done,
+                        ));
+                      }
+                    }
+                  },
+                  child: const Text('Lưu', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 }
+
 
 class _TimelineStep {
   final String title;

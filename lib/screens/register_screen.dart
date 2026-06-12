@@ -16,7 +16,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  String _selectedRole = 'member';
+  // Vai trò luôn mặc định là 'member' — Manager do Admin cấp quyền sau
   bool _obscurePassword = true;
   late AnimationController _animCtrl;
   late Animation<double> _fadeAnim;
@@ -61,7 +61,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     final authProvider = context.read<AuthProvider>();
     final isOnline = context.read<ConnectivityProvider>().isOnline;
     final success =
-        await authProvider.register(name, email, password, _selectedRole);
+        await authProvider.register(name, email, password, 'member');
 
     if (mounted) {
       if (success) {
@@ -267,8 +267,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                           ),
                           const SizedBox(height: 16),
 
-                          // Role Selection — custom pill toggle
-                          _buildRoleSelector(),
+                          // Thông báo vai trò mặc định
+                          _buildMemberBadge(),
                           const SizedBox(height: 28),
 
                           // Register Button
@@ -346,89 +346,47 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
   }
 
-  Widget _buildRoleSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'VAI TRÒ',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            color: AppColors.secondaryText,
-            letterSpacing: 1.0,
+  /// Badge thông báo tài khoản mới luôn là Nhân viên
+  Widget _buildMemberBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDF4), // xanh lá nhạt
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFBBF7D0), width: 1),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: Color(0xFF16A34A),
           ),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          height: 52,
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Row(
-            children: [
-              _buildRolePill('member', Icons.person_outline_rounded,
-                  'Nhân viên'),
-              const SizedBox(width: 4),
-              _buildRolePill('manager',
-                  Icons.admin_panel_settings_outlined, 'Quản lý'),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRolePill(
-      String role, IconData icon, String label) {
-    final bool selected = _selectedRole == role;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _selectedRole = role),
-          child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.20),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : [],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: selected
-                    ? Colors.white
-                    : AppColors.secondaryText,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
+          const SizedBox(width: 10),
+          Expanded(
+            child: RichText(
+              text: const TextSpan(
                 style: TextStyle(
-                  color: selected
-                      ? Colors.white
-                      : AppColors.secondaryText,
-                  fontWeight:
-                      selected ? FontWeight.w700 : FontWeight.w500,
                   fontSize: 13,
+                  color: Color(0xFF15803D),
+                  height: 1.4,
                 ),
+                children: [
+                  TextSpan(
+                    text: 'Tài khoản mới mặc định là ',
+                  ),
+                  TextSpan(
+                    text: 'Nhân viên',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  TextSpan(
+                    text: '.\nQuyền Quản lý do Admin cấp sau khi xét duyệt.',
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

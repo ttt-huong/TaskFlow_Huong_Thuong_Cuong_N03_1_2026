@@ -1,4 +1,4 @@
-// =============================================================================
+﻿// =============================================================================
 // IMPORTS
 // =============================================================================
 import 'package:flutter/material.dart';
@@ -6,12 +6,15 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../widgets/common/main_layout.dart';
 import '../widgets/common/app_footer.dart';
+import '../widgets/common/skeleton_loader.dart';
 import '../models/task_model.dart';
 import '../models/project_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/task_provider.dart';
 import '../providers/project_provider.dart';
 import '../core/app_colors.dart';
+import 'task_detail_screen.dart';
+import 'project_task_screen.dart';
 
 // =============================================================================
 // CLASS: HomeScreen (StatefulWidget)
@@ -33,6 +36,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   // =============================================================================
   int _activeTab = 0; // 0 = Tổng quan, 1 = Nhiệm vụ của tôi
   String _selectedStatusChip = 'Tất cả';
+  String _searchQuery = ''; // Từ khóa tìm kiếm từ thanh search trên AppBar
+  bool _isInitialLoading = true;
+  String? _initialLoadError;
 
   late AnimationController _animCtrl;
   late Animation<double> _fadeAnim;
@@ -60,21 +66,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     // Nạp dữ liệu tự động sau khi giao diện render xong lần đầu
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final auth = Provider.of<AuthProvider>(context, listen: false);
-      final user = auth.currentUser;
-      if (user != null) {
-        final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
-        final taskProvider = Provider.of<TaskProvider>(context, listen: false);
-        
-        projectProvider.loadProjects(user);
-        projectProvider.loadAllUsers();
-        if (user.isManager) {
-          taskProvider.loadAllTasks();
-        } else {
-          taskProvider.loadMyTasks(user.id);
-        }
-      }
-      _animCtrl.forward();
+      _loadInitialData();
     });
   }
 
@@ -93,6 +85,176 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _animCtrl.forward(from: 0);
   }
 
+  String _normalizeSearchText(String value) {
+    final lower = value.toLowerCase().trim();
+    const accents = {
+      '\u00e0': 'a',
+      '\u00e1': 'a',
+      '\u1ea1': 'a',
+      '\u1ea3': 'a',
+      '\u00e3': 'a',
+      '\u00e2': 'a',
+      '\u1ea7': 'a',
+      '\u1ea5': 'a',
+      '\u1ead': 'a',
+      '\u1ea9': 'a',
+      '\u1eab': 'a',
+      '\u0103': 'a',
+      '\u1eb1': 'a',
+      '\u1eaf': 'a',
+      '\u1eb7': 'a',
+      '\u1eb3': 'a',
+      '\u1eb5': 'a',
+      '\u00e8': 'e',
+      '\u00e9': 'e',
+      '\u1eb9': 'e',
+      '\u1ebb': 'e',
+      '\u1ebd': 'e',
+      '\u00ea': 'e',
+      '\u1ec1': 'e',
+      '\u1ebf': 'e',
+      '\u1ec7': 'e',
+      '\u1ec3': 'e',
+      '\u1ec5': 'e',
+      '\u00ec': 'i',
+      '\u00ed': 'i',
+      '\u1ecb': 'i',
+      '\u1ec9': 'i',
+      '\u0129': 'i',
+      '\u00f2': 'o',
+      '\u00f3': 'o',
+      '\u1ecd': 'o',
+      '\u1ecf': 'o',
+      '\u00f5': 'o',
+      '\u00f4': 'o',
+      '\u1ed3': 'o',
+      '\u1ed1': 'o',
+      '\u1ed9': 'o',
+      '\u1ed5': 'o',
+      '\u1ed7': 'o',
+      '\u01a1': 'o',
+      '\u1edd': 'o',
+      '\u1edb': 'o',
+      '\u1ee3': 'o',
+      '\u1edf': 'o',
+      '\u1ee1': 'o',
+      '\u00f9': 'u',
+      '\u00fa': 'u',
+      '\u1ee5': 'u',
+      '\u1ee7': 'u',
+      '\u0169': 'u',
+      '\u01b0': 'u',
+      '\u1eeb': 'u',
+      '\u1ee9': 'u',
+      '\u1ef1': 'u',
+      '\u1eed': 'u',
+      '\u1eef': 'u',
+      '\u1ef3': 'y',
+      '\u00fd': 'y',
+      '\u1ef5': 'y',
+      '\u1ef7': 'y',
+      '\u1ef9': 'y',
+      '\u0111': 'd',
+    };
+
+    final buffer = StringBuffer();
+    for (final codeUnit in lower.codeUnits) {
+      final char = String.fromCharCode(codeUnit);
+      buffer.write(accents[char] ?? char);
+    }
+    return buffer.toString();
+  }
+
+  bool _matchesTask(Task task) {
+    if (_searchQuery.isEmpty) return true;
+    final haystack = _normalizeSearchText([
+      task.title,
+      task.description,
+      task.assigneeName,
+      task.status,
+      _getStatusLabelVi(task.status),
+      task.deadlineFormatted,
+    ].join(' '));
+    return haystack.contains(_searchQuery);
+  }
+
+  bool _matchesProject(ProjectModel project) {
+    if (_searchQuery.isEmpty) return true;
+    final haystack = _normalizeSearchText([
+      project.name,
+      project.description,
+      project.memberIds.join(' '),
+    ].join(' '));
+    return haystack.contains(_searchQuery);
+  }
+
+  Widget _buildSearchSummary(int count, String label) {
+    if (_searchQuery.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Tìm thấy $count $label',
+              style: const TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _loadInitialData() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+
+    if (user == null) {
+      if (!mounted) return;
+      setState(() {
+        _isInitialLoading = false;
+        _initialLoadError = null;
+      });
+      _animCtrl.forward();
+      return;
+    }
+
+    setState(() {
+      _isInitialLoading = true;
+      _initialLoadError = null;
+    });
+
+    try {
+      final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
+      final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+
+      await Future.wait([
+        projectProvider.loadProjects(user),
+        user.isManager ? taskProvider.loadAllTasks() : taskProvider.loadMyTasks(user.id),
+      ]);
+
+      if (!mounted) return;
+      final projectIds = projectProvider.projects.map((p) => p.id).toList();
+      taskProvider.loadProjectStats(projectIds);
+
+      setState(() {
+        _isInitialLoading = false;
+        _initialLoadError = null;
+      });
+      _animCtrl.forward(from: 0);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isInitialLoading = false;
+        _initialLoadError = 'Không thể tải dữ liệu trang chủ. Vui lòng thử lại.';
+      });
+    }
+  }
+
   String _formatCurrentDate(DateTime date) {
     // Dùng intl để định dạng thứ (vi locale fallback thủ công vì không cần generate)
     const weekdays = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
@@ -106,39 +268,161 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
+    final taskProvider = Provider.of<TaskProvider>(context);
+    final projectProvider = Provider.of<ProjectProvider>(context);
     final user = authProvider.currentUser;
     final isManager = user?.isManager ?? false;
+    final isPageLoading =
+        _isInitialLoading || taskProvider.isLoading || projectProvider.isLoading;
 
     return MainLayout(
       title: 'TaskFlow',
       showImage: false,
+      showSearchBar: true,
+      searchHint: 'Tìm kiếm nhiệm vụ, dự án...',
+      onSearchChanged: (query) {
+        setState(() => _searchQuery = _normalizeSearchText(query));
+      },
       body: Container(
         color: AppColors.background,
-        child: FadeTransition(
-          opacity: _fadeAnim,
-          child: SlideTransition(
-            position: _slideAnim,
-            child: SingleChildScrollView(
-              // Spring scroll physics tưᨎng tự iOS: dùng SpringScrollSimulation
-              physics: const _SpringScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-              child: Column(
+        child: isPageLoading
+            ? _buildInitialLoadingState()
+            : _initialLoadError != null
+                ? _buildInitialLoadErrorState()
+                : FadeTransition(
+                    opacity: _fadeAnim,
+                    child: SlideTransition(
+                      position: _slideAnim,
+                      child: SingleChildScrollView(
+                        physics: const _SpringScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildHeaderSection(user?.name ?? studentName, user?.role ?? 'member'),
+                            const SizedBox(height: 20),
+                            _buildModernSegmentControl(isManager),
+                            const SizedBox(height: 20),
+                            _activeTab == 0
+                                ? _buildTabOverview(isManager, authProvider)
+                                : _buildTabMyTasks(isManager, authProvider),
+                            const SizedBox(height: 24),
+                            const AppFooter(),
+                            const SizedBox(height: 100),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+      ),
+    );
+  }
+
+  Widget _buildInitialLoadingState() {
+    return _buildHomeLoadingSkeleton();
+  }
+
+  Widget _buildHomeLoadingSkeleton() {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeaderSection(user?.name ?? studentName, user?.role ?? 'member'),
-                  const SizedBox(height: 20),
-                  _buildModernSegmentControl(),
-                  const SizedBox(height: 20),
-                  _activeTab == 0
-                      ? _buildTabOverview(isManager, authProvider)
-                      : _buildTabMyTasks(isManager, authProvider),
-                  const SizedBox(height: 24),
-                  const AppFooter(),
-                  const SizedBox(height: 100), // Khoảng trống tránh đè lên Floating NavBar
+                  SkeletonLoader(width: 150, height: 22, borderRadius: 6),
+                  SizedBox(height: 8),
+                  SkeletonLoader(width: 110, height: 14, borderRadius: 4),
                 ],
               ),
+              SkeletonLoader(width: 52, height: 52, borderRadius: 18),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Container(
+            height: 48,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Row(
+              children: [
+                Expanded(
+                  child: SkeletonLoader(
+                    width: double.infinity,
+                    height: 40,
+                    borderRadius: 10,
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: SkeletonLoader(
+                    width: double.infinity,
+                    height: 40,
+                    borderRadius: 10,
+                  ),
+                ),
+              ],
             ),
           ),
+          const SizedBox(height: 24),
+          const SkeletonLoader(width: 130, height: 14, borderRadius: 4),
+          const SizedBox(height: 12),
+          const SkeletonProjectList(),
+          const SizedBox(height: 20),
+          const SkeletonLoader(width: 150, height: 14, borderRadius: 4),
+          const SizedBox(height: 12),
+          const SkeletonTaskList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInitialLoadErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(Icons.error_outline_rounded, color: AppColors.error),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _initialLoadError ?? 'Không thể tải dữ liệu trang chủ.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.text,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _loadInitialData,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Thử lại'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -256,7 +540,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   // =============================================================================
   // 6. UI SECTION: SEGMENT CONTROL (Tabs Selector)
   // =============================================================================
-  Widget _buildModernSegmentControl() {
+  Widget _buildModernSegmentControl(bool isManager) {
+    const tab1 = 'Tổng quan';
+    final tab2 = isManager ? 'Chờ duyệt' : 'Nhiệm vụ của tôi';
     return Container(
       height: 48,
       decoration: BoxDecoration(
@@ -266,8 +552,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       padding: const EdgeInsets.all(4),
       child: Row(
         children: [
-          _buildSegmentItem(0, 'Tổng quan'),
-          _buildSegmentItem(1, 'Nhiệm vụ của tôi'),
+          _buildSegmentItem(0, tab1),
+          _buildSegmentItem(1, tab2),
         ],
       ),
     );
@@ -313,56 +599,77 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   // =============================================================================
   Widget _buildTabOverview(bool isManager, AuthProvider authProvider) {
     if (isManager) {
-      return _buildManagerOverview();
+      return _buildManagerOverview(isManager);
     } else {
       return _buildMemberOverview(authProvider);
     }
   }
 
-  // -----------------------------------------------------------------------------
   // Tab Tổng quan - Giao diện của MANAGER
   // -----------------------------------------------------------------------------
-  Widget _buildManagerOverview() {
+  Widget _buildManagerOverview(bool isManager) {
     final taskProvider = Provider.of<TaskProvider>(context);
     final projectProvider = Provider.of<ProjectProvider>(context);
 
     final allTasks = taskProvider.tasks;
-    final reviewingTasks = allTasks.where((t) => t.status == 'reviewing').toList();
+    final matchedTasks = allTasks.where(_matchesTask).toList();
+    final matchedProjects = projectProvider.projects.where(_matchesProject).toList();
+    final visibleTasks = _searchQuery.isEmpty ? allTasks : matchedTasks;
+    final reviewingTasks = visibleTasks.where((t) => t.status == 'reviewing').toList();
     final doingTasksCount = allTasks.where((t) => t.status == 'doing').length;
-    final doneTasksCount = allTasks.where((t) => t.status == 'done').length;
+    final doneTasksCount  = allTasks.where((t) => t.status == 'done').length;
+    // Đếm số nhân viên duy nhất được gán task (không tính Manager)
+    final memberCount = allTasks.map((t) => t.assignedTo).toSet().where((id) => id.isNotEmpty).length;
 
     final featuredTask = reviewingTasks.isNotEmpty ? reviewingTasks.first : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _buildSearchSummary(
+          matchedTasks.length + matchedProjects.length,
+          'kết quả',
+        ),
+
+        // Thống kê 4 ô (lưới 2x2)
+        _buildSectionTitle('THỐNG KÊ NHÓM'),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            _buildStatCard('TỔNG CỘNG', allTasks.length.toString(), AppColors.primary),
+            const SizedBox(width: 10),
+            _buildStatCard('ĐANG LÀM', doingTasksCount.toString(), AppColors.doing),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _buildStatCard('HOÀN THÀNH', doneTasksCount.toString(), AppColors.done),
+            const SizedBox(width: 10),
+            _buildStatCard('THÀNH VIÊN', memberCount.toString(), const Color(0xFF0EA5E9)),
+          ],
+        ),
+        const SizedBox(height: 20),
+
         // Hero: Task cần duyệt tiêu biểu nhất
-        _buildSectionTitle('NHIỆM VỤ TIÊU BIỂU'),
+        _buildSectionTitle('CẦN PHÊ DUYỆT GẤP NHẤT'),
         const SizedBox(height: 12),
         featuredTask != null
             ? _buildManagerHeroCard(featuredTask)
             : _buildManagerFallbackHeroCard(),
         const SizedBox(height: 20),
 
-        // Thống kê nhóm
-        _buildSectionTitle('THỐNG KÊ NHÓM'),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            _buildStatCard('TỔNG CỘNG', allTasks.length.toString(), AppColors.primary),
-            const SizedBox(width: 12),
-            _buildStatCard('ĐANG LÀM', doingTasksCount.toString(), AppColors.doing),
-            const SizedBox(width: 12),
-            _buildStatCard('HOÀN THÀNH', doneTasksCount.toString(), AppColors.done),
-          ],
-        ),
-        const SizedBox(height: 20),
-
-        // Danh sách nhiệm vụ cần duyệt (nếu có)
-        if (reviewingTasks.isNotEmpty) ...[
-          _buildSectionTitle('ĐANG CHỜ PHÊ DUYỆT (${reviewingTasks.length})'),
+        if (_searchQuery.isNotEmpty) ...[
+          _buildSectionTitle('NHIỆM VỤ KHỚP TỪ KHÓA'),
           const SizedBox(height: 12),
-          ...reviewingTasks.take(3).map((task) => _buildTaskItem(task, true)),
+          matchedTasks.isEmpty
+              ? _buildEmptyHint('Không tìm thấy nhiệm vụ phù hợp.')
+              : Column(
+                  children: matchedTasks
+                      .take(5)
+                      .map((task) => _buildManagerTaskRow(task))
+                      .toList(),
+                ),
           const SizedBox(height: 20),
         ],
 
@@ -371,10 +678,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         const SizedBox(height: 12),
         projectProvider.isLoading
             ? const Center(child: CircularProgressIndicator())
-            : projectProvider.projects.isEmpty
-                ? _buildEmptyState('Chưa có dự án nào')
+            : matchedProjects.isEmpty
+                ? _buildEmptyState(_searchQuery.isEmpty
+                    ? (isManager ? 'Hãy tạo dự án đầu tiên.' : 'Chưa có dự án nào')
+                    : 'Không tìm thấy dự án phù hợp.')
                 : Column(
-                    children: projectProvider.projects.take(3).map((p) => _buildProjectCard(p)).toList(),
+                    children: matchedProjects
+                        .take(3)
+                        .map((p) => _buildProjectCard(p))
+                        .toList(),
                   ),
       ],
     );
@@ -386,6 +698,65 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget _buildMemberOverview(AuthProvider authProvider) {
     final taskProvider = Provider.of<TaskProvider>(context);
     final myTasks = taskProvider.tasks;
+    final matchedTasks = myTasks.where(_matchesTask).toList();
+
+    if (_searchQuery.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSearchSummary(matchedTasks.length, 'nhiệm vụ'),
+          matchedTasks.isEmpty
+              ? _buildEmptyHint('Không tìm thấy nhiệm vụ phù hợp.')
+              : Column(
+                  children: matchedTasks
+                      .map((task) => _buildTaskItem(task, false))
+                      .toList(),
+                ),
+        ],
+      );
+    }
+
+    if (myTasks.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 20),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.assignment_ind_outlined,
+                size: 64,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Bạn chưa có nhiệm vụ nào.',
+              style: TextStyle(
+                color: AppColors.text,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Manager sẽ giao việc cho bạn.',
+              style: TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
 
     final doingTasks = myTasks.where((t) => t.status == 'doing').toList();
     final urgentDoing = doingTasks.where((t) => t.isUrgent).toList();
@@ -430,9 +801,18 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   // =============================================================================
   Widget _buildManagerHeroCard(Task task) {
     final taskProvider = Provider.of<TaskProvider>(context, listen: false);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TaskDetailScreen(task: task),
+          ),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
@@ -504,8 +884,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               Row(
                 children: [
                   TextButton(
-                    onPressed: () async {
-                      await taskProvider.updateTaskStatus(task.id, 'doing');
+                    onPressed: () {
+                      _showRejectDialog(context, taskProvider, task.id);
                     },
                     style: TextButton.styleFrom(
                       foregroundColor: Colors.white,
@@ -515,7 +895,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   const SizedBox(width: 8),
                   ElevatedButton(
                     onPressed: () async {
-                      await taskProvider.updateTaskStatus(task.id, 'done');
+                      final success = await taskProvider.approveTask(task.id);
+                      if (context.mounted && success) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Đã duyệt nhiệm vụ thành công 🎉'),
+                          backgroundColor: AppColors.done,
+                        ));
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
@@ -537,7 +923,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
         ],
       ),
-    );
+    ),);
   }
 
   Widget _buildManagerFallbackHeroCard() {
@@ -593,8 +979,17 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   // 9. UI SUBSECTION: MEMBER HERO CARD (Active Doing Task)
   // =============================================================================
   Widget _buildMemberHeroCard(Task task) {
-    return Container(
-      width: double.infinity,
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TaskDetailScreen(task: task),
+          ),
+        );
+      },
+      child: Container(
+        width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -688,7 +1083,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
         ],
       ),
-    );
+    ),);
   }
 
   Widget _buildMemberFallbackHeroCard() {
@@ -848,10 +1243,36 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildProjectCard(ProjectModel project) {
-    final double prog = project.progress > 0 ? project.progress / 100 : 0.0;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+    final taskProvider = Provider.of<TaskProvider>(context);
+    final stats = taskProvider.projectStats[project.id] ?? {
+      'total': 0,
+      'done': 0,
+      'progress': 0.0,
+      'todo': 0,
+      'doing': 0,
+      'reviewing': 0
+    };
+    final double progressPercent = (stats['progress'] as num?)?.toDouble() ?? 0.0;
+    final double prog = progressPercent / 100.0;
+    final int todoCount = stats['todo'] ?? 0;
+    final int doingCount = stats['doing'] ?? 0;
+    final int doneCount = stats['done'] ?? 0;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProjectTaskScreen(
+              projectId: project.id,
+              projectName: project.name,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -917,16 +1338,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 spacing: 8,
                 runSpacing: 4,
                 children: [
-                  _buildProjectStatBadge('Todo', project.todoCount, AppColors.todo),
-                  _buildProjectStatBadge('Doing', project.doingCount, AppColors.doing),
-                  _buildProjectStatBadge('Done', project.doneCount, AppColors.done),
+                  _buildProjectStatBadge('Todo', todoCount, AppColors.todo),
+                  _buildProjectStatBadge('Doing', doingCount, AppColors.doing),
+                  _buildProjectStatBadge('Done', doneCount, AppColors.done),
                 ],
               ),
             ],
           ),
         ],
       ),
-    );
+    ),);
   }
 
   Widget _buildProjectStatBadge(String label, int count, Color color) {
@@ -944,64 +1365,92 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   // =============================================================================
-  // 11. UI SECTION: TAB 2 - MY TASKS (Nhiệm vụ của tôi)
+  // 11. UI SECTION: TAB 2
+  //     - Manager: "Chờ duyệt" — hiện task có status=reviewing, nút Duyệt/Từ chối
+  //     - Member : "Nhiệm vụ của tôi" — hiện task được gán cho mình
   // =============================================================================
   Widget _buildTabMyTasks(bool isManager, AuthProvider authProvider) {
+    return isManager
+        ? _buildManagerApprovalTab()
+        : _buildMemberTasksTab(authProvider);
+  }
+
+  // --------------------------------------------------------------------------
+  // Tab 2 dành cho MANAGER: hiện toàn bộ task của team, lọc theo trạng thái
+  // --------------------------------------------------------------------------
+  Widget _buildManagerApprovalTab() {
     final taskProvider = Provider.of<TaskProvider>(context);
     final allTasks = taskProvider.tasks;
 
-    // Phân loại: Manager xem tất cả, Member chỉ xem task của mình được gán
-    final roleFiltered = isManager
+    // Lọc theo chip trạng thái
+    final statusFiltered = _selectedStatusChip == 'Tất cả'
         ? allTasks
-        : allTasks.where((task) => task.assignedTo == authProvider.currentUser?.id).toList();
+        : allTasks.where((t) =>
+            t.status.toLowerCase() == _selectedStatusChip.toLowerCase()).toList();
 
-    // Lọc theo chip trạng thái đang chọn
-    final filteredTasks = roleFiltered.where((task) {
-      if (_selectedStatusChip == 'Tất cả') return true;
-      return task.status.toLowerCase() == _selectedStatusChip.toLowerCase();
-    }).toList();
+    // Lọc theo từ khóa tìm kiếm
+    final filteredTasks = statusFiltered.where(_matchesTask).toList();
+
+    final reviewingCount = allTasks.where((t) => t.status == 'reviewing').length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Scrolling filter chips
+        // Banner thông báo số task cần duyệt
+        if (reviewingCount > 0)
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFFED7AA), width: 1),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.pending_actions_rounded,
+                    color: Color(0xFFEA580C), size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Có $reviewingCount nhiệm vụ đang chờ bạn phê duyệt!',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF9A3412),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // Chip lọc trạng thái
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
           child: Row(
-            children: ['Tất cả', 'Todo', 'Doing', 'Reviewing', 'Done'].map((status) {
-              final isSelected = _selectedStatusChip == status;
+            children: ['Tất cả', 'Todo', 'Doing', 'Reviewing', 'Done'].map((s) {
+              final sel = _selectedStatusChip == s;
               return GestureDetector(
-                onTap: () => setState(() => _selectedStatusChip = status),
+                onTap: () => setState(() => _selectedStatusChip = s),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   margin: const EdgeInsets.only(right: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isSelected ? AppColors.primary : Colors.white,
-                    borderRadius: BorderRadius.circular(999),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: AppColors.primary.withValues(alpha: 0.2),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ]
-                        : [
-                            BoxShadow(
-                              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                    color: sel ? AppColors.primary : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: sel ? AppColors.primary : const Color(0xFFE2E8F0),
+                    ),
                   ),
                   child: Text(
-                    _chipLabel(status),
+                    _chipLabel(s),
                     style: TextStyle(
-                      color: isSelected ? Colors.white : AppColors.secondaryText,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                      fontSize: 12,
+                      color: sel ? Colors.white : AppColors.secondaryText,
+                      fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                      fontSize: 13,
                     ),
                   ),
                 ),
@@ -1009,20 +1458,273 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             }).toList(),
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
 
-        // Danh sách task sau lọc
-        _buildSectionTitle('DANH SÁCH NHIỆM VỤ (${filteredTasks.length})'),
-        const SizedBox(height: 12),
+        // Danh sách task
+        _buildSearchSummary(filteredTasks.length, 'nhiệm vụ'),
         filteredTasks.isEmpty
-            ? _buildEmptyState('Không tìm thấy nhiệm vụ nào')
-            : ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: filteredTasks.length,
-                itemBuilder: (context, index) {
-                  return _buildTaskItem(filteredTasks[index], isManager);
-                },
+            ? _buildEmptyHint(_searchQuery.isNotEmpty
+                ? 'Không tìm thấy kết quả khớp.'
+                : 'Không có nhiệm vụ nào trong trạng thái này.')
+            : Column(
+                children: filteredTasks
+                    .map((task) => _buildManagerTaskRow(task))
+                    .toList(),
+              ),
+      ],
+    );
+  }
+
+  /// Card nhiệm vụ dành cho Manager trong tab Chờ duyệt
+  Widget _buildManagerTaskRow(Task task) {
+    final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+    final isReviewing = task.status == 'reviewing';
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => TaskDetailScreen(task: task),
+          ),
+        );
+      },
+      child: Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: isReviewing
+            ? Border.all(color: const Color(0xFFFED7AA), width: 1.5)
+            : Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Dòng 1: Tiêu đề + Badge trạng thái
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  task.title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.text,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              _buildStatusBadge(task.status),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Dòng 2: Nhân viên + Hạn
+          Row(
+            children: [
+              const Icon(Icons.person_outline_rounded,
+                  size: 14, color: AppColors.secondaryText),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  task.assigneeName.isNotEmpty ? task.assigneeName : 'Chưa gán',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.secondaryText),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const Icon(Icons.calendar_today_outlined,
+                  size: 12, color: AppColors.secondaryText),
+              const SizedBox(width: 4),
+              Text(
+                task.deadlineShort,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: task.isOverdue() ? AppColors.error : AppColors.secondaryText,
+                  fontWeight: task.isOverdue() ? FontWeight.w700 : FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+          // Nút Duyệt / Từ chối chỉ hiện khi status = reviewing
+          if (isReviewing) ...[
+            const SizedBox(height: 10),
+            const Divider(height: 1, color: Color(0xFFF1F5F9)),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () {
+                    _showRejectDialog(context, taskProvider, task.id);
+                  },
+                  icon: const Icon(Icons.close_rounded, size: 14),
+                  label: const Text('Từ chối',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    side: const BorderSide(color: Color(0xFFFFCDD2)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final success = await taskProvider.approveTask(task.id);
+                    if (context.mounted && success) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text('Đã duyệt nhiệm vụ thành công 🎉'),
+                        backgroundColor: AppColors.done,
+                      ));
+                    }
+                  },
+                  icon: const Icon(Icons.check_rounded, size: 14),
+                  label: const Text('Duyệt',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.done,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    ),);
+  }
+
+  Widget _buildStatusBadge(String status) {
+    final Map<String, Color> colors = {
+      'todo': AppColors.todo,
+      'doing': AppColors.doing,
+      'reviewing': const Color(0xFFEA580C),
+      'done': AppColors.done,
+      'cancelled': AppColors.grey,
+      'archived': AppColors.secondaryText,
+    };
+    final Map<String, String> labels = {
+      'todo': 'Cần làm',
+      'doing': 'Đang làm',
+      'reviewing': 'Chờ duyệt',
+      'done': 'Xong',
+      'cancelled': 'Đã huỷ',
+      'archived': 'Lưu trữ',
+    };
+    final color = colors[status] ?? AppColors.secondaryText;
+    final label = labels[status] ?? status;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // Tab 2 dành cho MEMBER: hiện task được gán cho mình, lọc theo trạng thái + search
+  // --------------------------------------------------------------------------
+  Widget _buildMemberTasksTab(AuthProvider authProvider) {
+    final taskProvider = Provider.of<TaskProvider>(context);
+    final allTasks = taskProvider.tasks;
+
+    // Chỉ hiện task được gán cho Member hiện tại
+    final roleFiltered = allTasks
+        .where((task) => task.assignedTo == authProvider.currentUser?.id)
+        .toList();
+
+    // Lọc theo chip trạng thái
+    final statusFiltered = _selectedStatusChip == 'Tất cả'
+        ? roleFiltered
+        : roleFiltered
+            .where((t) =>
+                t.status.toLowerCase() == _selectedStatusChip.toLowerCase())
+            .toList();
+
+    // Lọc theo từ khóa tìm kiếm
+    final filteredTasks = statusFiltered.where(_matchesTask).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Chip lọc trạng thái
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: ['Tất cả', 'Todo', 'Doing', 'Reviewing', 'Done'].map((s) {
+              final sel = _selectedStatusChip == s;
+              return GestureDetector(
+                onTap: () => setState(() => _selectedStatusChip = s),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: sel ? AppColors.primary : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: sel ? AppColors.primary : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: Text(
+                    _chipLabel(s),
+                    style: TextStyle(
+                      color: sel ? Colors.white : AppColors.secondaryText,
+                      fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Danh sách task
+        _buildSearchSummary(filteredTasks.length, 'nhiệm vụ'),
+        filteredTasks.isEmpty
+            ? _buildEmptyHint(_searchQuery.isNotEmpty
+                ? 'Không tìm thấy kết quả khớp.'
+                : (roleFiltered.isEmpty
+                    ? 'Bạn chưa có nhiệm vụ nào.\nManager sẽ giao việc cho bạn.'
+                    : 'Không có nhiệm vụ nào trong trạng thái này.'))
+            : Column(
+                children: filteredTasks
+                    .map((task) => _buildTaskItem(task, false))
+                    .toList(),
               ),
       ],
     );
@@ -1063,73 +1765,83 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
         ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        onTap: () => _showStatusUpdateSheet(context, task, isManager),
-        leading: Container(
-          width: 14,
-          height: 14,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: sColor.withValues(alpha: 0.15),
-            border: Border.all(color: sColor, width: 2.5),
-          ),
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                task.title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14, // body size
-                  color: AppColors.text,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TaskDetailScreen(task: task),
               ),
+            );
+          },
+          leading: Container(
+            width: 14,
+            height: 14,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: sColor.withValues(alpha: 0.15),
+              border: Border.all(color: sColor, width: 2.5),
             ),
-            if (task.isUrgent) ...[
-              const SizedBox(width: 6),
-              _buildMiniTag('GẤP', AppColors.error),
-            ],
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8.0),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          ),
+          title: Row(
             children: [
-              _buildMiniTag(_getStatusLabelVi(task.status), sColor),
-              if (isOverdue) _buildMiniTag('Quá hạn ⚠', AppColors.error),
-              if (isManager && task.assigneeName.isNotEmpty) _buildAssigneeChip(task),
+              Expanded(
+                child: Text(
+                  task.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14, // body size
+                    color: AppColors.text,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (task.isUrgent) ...[
+                const SizedBox(width: 6),
+                _buildMiniTag('GẤP', AppColors.error),
+              ],
             ],
           ),
-        ),
-        trailing: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              task.deadlineFormatted,
-              style: TextStyle(
-                color: isOverdue ? AppColors.error : AppColors.secondaryText,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _buildMiniTag(_getStatusLabelVi(task.status), sColor),
+                if (isOverdue) _buildMiniTag('Quá hạn ⚠', AppColors.error),
+                if (isManager && task.assigneeName.isNotEmpty) _buildAssigneeChip(task),
+              ],
             ),
-            const SizedBox(height: 2),
-            const Text(
-              'Hạn chót',
-              style: TextStyle(
-                color: AppColors.secondaryText,
-                fontSize: 12, // caption size
-                fontWeight: FontWeight.w500,
+          ),
+          trailing: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                task.deadlineFormatted,
+                style: TextStyle(
+                  color: isOverdue ? AppColors.error : AppColors.secondaryText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 2),
+              const Text(
+                'Hạn chót',
+                style: TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 12, // caption size
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1318,8 +2030,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           icon: const Icon(Icons.close, color: Colors.orangeAccent),
                           label: const Text('Từ chối', style: TextStyle(color: Colors.orangeAccent, fontSize: 14)),
                           onPressed: () async {
-                            await taskProvider.updateTaskStatus(task.id, 'doing');
-                            if (context.mounted) Navigator.pop(context);
+                            Navigator.pop(context);
+                            _showRejectDialog(context, taskProvider, task.id);
                           },
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Colors.orangeAccent),
@@ -1334,8 +2046,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           icon: const Icon(Icons.check, color: Colors.white),
                           label: const Text('Duyệt', style: TextStyle(color: Colors.white, fontSize: 14)),
                           onPressed: () async {
-                            await taskProvider.updateTaskStatus(task.id, 'done');
-                            if (context.mounted) Navigator.pop(context);
+                            final success = await taskProvider.approveTask(task.id);
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              if (success) {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                  content: Text('Đã duyệt nhiệm vụ thành công 🎉'),
+                                  backgroundColor: AppColors.done,
+                                ));
+                              }
+                            }
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
@@ -1535,6 +2255,79 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               fontWeight: FontWeight.w700,
               fontSize: 16, // title size
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRejectDialog(BuildContext context, TaskProvider taskProvider, String taskId) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Từ chối nhiệm vụ', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Vui lòng nhập lý do từ chối nhiệm vụ này:'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              decoration: InputDecoration(
+                hintText: 'Nhập lý do từ chối...',
+                hintStyle: const TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                filled: true,
+                fillColor: const Color(0xFFF8F9FD),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              final reason = controller.text.trim();
+              if (reason.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Vui lòng nhập lý do từ chối!'),
+                  backgroundColor: AppColors.error,
+                ));
+                return;
+              }
+              Navigator.pop(ctx);
+              final success = await taskProvider.rejectTask(taskId, reason);
+              if (context.mounted) {
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Đã từ chối nhiệm vụ và chuyển về Cần làm (Todo).'),
+                    backgroundColor: AppColors.error,
+                  ));
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Lỗi: Không thể từ chối nhiệm vụ!'),
+                    backgroundColor: AppColors.error,
+                  ));
+                }
+              }
+            },
+            child: const Text('Từ chối', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

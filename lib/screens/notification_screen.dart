@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../core/app_colors.dart';
 import '../providers/notification_provider.dart';
+import '../providers/task_provider.dart';
 import '../models/notification_model.dart';
+import 'task_detail_screen.dart';
 import '../widgets/common/main_layout.dart';
 
 class NotificationScreen extends StatelessWidget {
@@ -13,6 +15,12 @@ class NotificationScreen extends StatelessWidget {
     switch (type) {
       case 'task_assigned':
         return Icons.assignment_rounded;
+      case 'task_review_submitted':
+        return Icons.outbox_rounded;
+      case 'task_rejected':
+        return Icons.assignment_late_rounded;
+      case 'task_approved':
+        return Icons.task_alt_rounded;
       case 'reminder':
         return Icons.access_alarm_rounded;
       case 'system':
@@ -26,6 +34,12 @@ class NotificationScreen extends StatelessWidget {
     switch (type) {
       case 'task_assigned':
         return AppColors.primary;
+      case 'task_review_submitted':
+        return AppColors.reviewing;
+      case 'task_rejected':
+        return AppColors.error;
+      case 'task_approved':
+        return AppColors.done;
       case 'reminder':
         return AppColors.doing;
       case 'system':
@@ -111,6 +125,34 @@ class NotificationScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _handleNotificationTap(
+    BuildContext context,
+    NotificationModel item,
+    NotificationProvider notificationProvider,
+  ) async {
+    await notificationProvider.markAsRead(item.id);
+    if (!context.mounted) return;
+
+    final taskId = item.relatedTaskId;
+    if (taskId == null || taskId.isEmpty) return;
+
+    final task = await context.read<TaskProvider>().findTaskById(taskId);
+    if (!context.mounted) return;
+
+    if (task == null) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Công việc này không còn tồn tại.')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => TaskDetailScreen(task: task)),
+    );
+  }
+
   Widget _buildNotificationCard(BuildContext context, NotificationModel item, NotificationProvider provider) {
     final iconColor = _getColorForType(item.type);
     
@@ -131,11 +173,7 @@ class NotificationScreen extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {
-            if (!item.isRead) {
-              provider.markAsRead(item.id);
-            }
-          },
+          onTap: () => _handleNotificationTap(context, item, provider),
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -195,7 +233,7 @@ class NotificationScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        DateFormat('HH:mm - dd/MM/yyyy').format(item.createdAt),
+                        DateFormat('HH:mm - dd/MM/yyyy').format(item.createdAt.toLocal()),
                         style: const TextStyle(
                           color: AppColors.grey,
                           fontSize: 11,

@@ -4,7 +4,6 @@ import '../providers/auth_provider.dart';
 import '../providers/task_provider.dart';
 import '../providers/project_provider.dart';
 import '../models/task_model.dart';
-import '../models/user_model.dart';
 import '../models/project_model.dart';
 import '../core/app_colors.dart';
 import '../widgets/common/skeleton_loader.dart';
@@ -109,10 +108,8 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
       orElse: () => ProjectModel(id: widget.projectId, name: widget.projectName, description: '', memberIds: []),
     );
 
-    // Lọc theo vai trò: Quyền Member chỉ thấy task của chính họ gán
-    List<Task> roleFiltered = isManager
-        ? taskProvider.tasks
-        : taskProvider.tasks.where((task) => task.assignedTo == authProvider.currentUser?.id).toList();
+    // Đã thay đổi: Hiển thị toàn bộ công việc trong dự án cho tất cả mọi người
+    List<Task> roleFiltered = taskProvider.tasks;
 
     // Lọc tiếp theo bộ lọc trạng thái
     List<Task> finalFilteredTasks = roleFiltered;
@@ -163,19 +160,6 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
               IconButton(
                 icon: const Icon(Icons.people_alt_outlined, color: AppColors.primary),
                 onPressed: () => _showManageMembersDialog(context, projectProvider, currentProject),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 16.0, top: 8.0, bottom: 8.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.add, color: Colors.white),
-                    onPressed: () => _showAddTaskDialog(context, projectProvider, currentProject),
-                  ),
-                ),
               ),
             ]
           ],
@@ -269,7 +253,7 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
                                   )
                                 : const Expanded(
                                     child: Text(
-                                      'Chỉ hiển thị công việc giao cho bạn',
+                                      'Hiển thị toàn bộ công việc trong dự án',
                                       style: TextStyle(
                                         color: AppColors.secondaryText,
                                         fontSize: 12,
@@ -408,11 +392,19 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
                                                             ),
                                                             if (isManager && isReviewing) ...[
                                                               GestureDetector(
-                                                                onTap: () => taskProvider.updateTaskStatus(task.id, 'doing'),
+                                                                onTap: () => _showRejectDialog(context, taskProvider, task.id),
                                                                 child: _buildActionButton('Từ chối', AppColors.doing),
                                                               ),
                                                               GestureDetector(
-                                                                onTap: () => taskProvider.updateTaskStatus(task.id, 'done'),
+                                                                onTap: () async {
+                                                                  final success = await taskProvider.approveTask(task.id);
+                                                                  if (context.mounted && success) {
+                                                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                                                      content: Text('Đã duyệt nhiệm vụ thành công 🎉'),
+                                                                      backgroundColor: AppColors.done,
+                                                                    ));
+                                                                  }
+                                                                },
                                                                 child: _buildActionButton('Duyệt', AppColors.done),
                                                               ),
                                                             ],
@@ -759,6 +751,79 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
     );
   }
 
+  void _showRejectDialog(BuildContext context, TaskProvider taskProvider, String taskId) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Từ chối nhiệm vụ', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Vui lòng nhập lý do từ chối nhiệm vụ này:'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              decoration: InputDecoration(
+                hintText: 'Nhập lý do từ chối...',
+                hintStyle: const TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                filled: true,
+                fillColor: const Color(0xFFF8F9FD),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              final reason = controller.text.trim();
+              if (reason.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Vui lòng nhập lý do từ chối!'),
+                  backgroundColor: AppColors.error,
+                ));
+                return;
+              }
+              Navigator.pop(ctx);
+              final success = await taskProvider.rejectTask(taskId, reason);
+              if (context.mounted) {
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Đã từ chối nhiệm vụ và chuyển về Cần làm (Todo).'),
+                    backgroundColor: AppColors.error,
+                  ));
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Lỗi: Không thể từ chối nhiệm vụ!'),
+                    backgroundColor: AppColors.error,
+                  ));
+                }
+              }
+            },
+            child: const Text('Từ chối', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildKanbanBoard(List<Task> tasks, bool isManager, TaskProvider taskProvider) {
     final statuses = ['todo', 'doing', 'reviewing', 'done'];
     final statusLabels = {
@@ -940,11 +1005,19 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
                                           mainAxisAlignment: MainAxisAlignment.end,
                                           children: [
                                             GestureDetector(
-                                              onTap: () => taskProvider.updateTaskStatus(task.id, 'doing'),
+                                              onTap: () => _showRejectDialog(context, taskProvider, task.id),
                                               child: _buildActionButton('Từ chối', AppColors.doing),
                                             ),
                                             GestureDetector(
-                                              onTap: () => taskProvider.updateTaskStatus(task.id, 'done'),
+                                              onTap: () async {
+                                                final success = await taskProvider.approveTask(task.id);
+                                                if (context.mounted && success) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                                    content: Text('Đã duyệt nhiệm vụ thành công 🎉'),
+                                                    backgroundColor: AppColors.done,
+                                                  ));
+                                                }
+                                              },
                                               child: _buildActionButton('Duyệt', AppColors.done),
                                             ),
                                           ],
@@ -1021,6 +1094,61 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
                     elevation: 0,
                   ),
                   onPressed: () async {
+                    // 1. Tìm các thành viên bị loại bỏ khỏi dự án
+                    final List<String> removedMemberIds = [];
+                    for (final originalId in project.memberIds) {
+                      if (!currentMemberIds.contains(originalId)) {
+                        removedMemberIds.add(originalId);
+                      }
+                    }
+
+                    if (removedMemberIds.isNotEmpty) {
+                      final taskProvider = Provider.of<TaskProvider>(context, listen: false);
+                      // Tìm các task chưa hoàn thành (todo, doing, reviewing) thuộc dự án này được giao cho họ
+                      final incompleteTasks = taskProvider.tasks.where((t) {
+                        final status = t.status.toLowerCase();
+                        final isIncomplete = status == 'todo' || status == 'doing' || status == 'reviewing';
+                        return t.projectId == project.id &&
+                            removedMemberIds.contains(t.assignedTo) &&
+                            isIncomplete;
+                      }).toList();
+
+                      if (incompleteTasks.isNotEmpty) {
+                        // Nhóm các task theo tên thành viên
+                        final Map<String, int> memberTaskCounts = {};
+                        for (final task in incompleteTasks) {
+                          final name = task.assigneeName.isNotEmpty ? task.assigneeName : 'Thành viên';
+                          memberTaskCounts[name] = (memberTaskCounts[name] ?? 0) + 1;
+                        }
+
+                        final messageBuf = StringBuffer();
+                        messageBuf.writeln('Không thể xóa các thành viên sau vì họ vẫn còn công việc chưa hoàn thành:');
+                        memberTaskCounts.forEach((name, count) {
+                          messageBuf.writeln('- $name: $count công việc');
+                        });
+                        messageBuf.write('\nVui lòng chuyển giao các nhiệm vụ này cho thành viên khác trước khi thực hiện xóa.');
+
+                        showDialog(
+                          context: context,
+                          builder: (warningCtx) => AlertDialog(
+                            backgroundColor: Colors.white,
+                            surfaceTintColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            title: const Text('Không thể xóa thành viên', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            content: Text(messageBuf.toString(), style: const TextStyle(fontSize: 13, height: 1.4)),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(warningCtx),
+                                child: const Text('Đã hiểu', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ),
+                        );
+                        return; // Dừng việc lưu
+                      }
+                    }
+
+                    // Nếu hợp lệ, cập nhật dự án
                     project.memberIds = currentMemberIds;
                     await projectProvider.updateProject(project);
                     if (context.mounted) {
@@ -1041,136 +1169,4 @@ class _ProjectTaskScreenState extends State<ProjectTaskScreen> {
     );
   }
 
-  void _showAddTaskDialog(BuildContext context, ProjectProvider projectProvider, ProjectModel project) {
-    final titleController = TextEditingController();
-    final descController = TextEditingController();
-    
-    // Lọc danh sách thành viên thực tế của dự án
-    final List<UserModel> projectMembers = projectProvider.allUsers
-        .where((u) => project.memberIds.contains(u.id))
-        .toList();
-
-    String? selectedUser = projectMembers.isNotEmpty ? projectMembers.first.id : null;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Thêm nhiệm vụ mới', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'Tiêu đề',
-                      labelStyle: TextStyle(color: AppColors.secondaryText),
-                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: descController,
-                    decoration: const InputDecoration(
-                      labelText: 'Mô tả',
-                      labelStyle: TextStyle(color: AppColors.secondaryText),
-                      focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary)),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  if (projectMembers.isEmpty) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.doing.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.warning_amber_rounded, color: AppColors.doing, size: 16),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Dự án chưa có thành viên. Hãy gán thành viên cho dự án trước.',
-                              style: TextStyle(color: AppColors.doing, fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ] else ...[
-                    const Text('Giao cho thành viên:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.text)),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<String>(
-                      dropdownColor: Colors.white,
-                      initialValue: selectedUser,
-                      hint: const Text('Chọn thành viên gán task'),
-                      items: projectMembers.map((u) {
-                        return DropdownMenuItem<String>(
-                          value: u.id,
-                          child: Text(u.name, style: const TextStyle(fontSize: 14)),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        setState(() {
-                          selectedUser = val;
-                        });
-                      },
-                    ),
-                  ],
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Hủy', style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.bold)),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    elevation: 0,
-                  ),
-                  onPressed: projectMembers.isEmpty
-                      ? null
-                      : () async {
-                          final title = titleController.text.trim();
-                          final desc = descController.text.trim();
-                          if (title.isNotEmpty && selectedUser != null) {
-                            final user = projectMembers.firstWhere(
-                              (u) => u.id == selectedUser,
-                            );
-                            final assigneeName = user.name;
-                            final assigneeAvatar = user.name.isNotEmpty ? user.name.substring(0, 1).toUpperCase() : '?';
-
-                            await Provider.of<TaskProvider>(context, listen: false).createTask(
-                              title,
-                              desc,
-                              widget.projectId,
-                              selectedUser!,
-                              DateTime.now().add(const Duration(days: 7)),
-                              assigneeName: assigneeName,
-                              assigneeAvatar: assigneeAvatar,
-                            );
-                            if (context.mounted) Navigator.pop(context);
-                          }
-                        },
-                  child: const Text('Tạo', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
 }
