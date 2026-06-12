@@ -165,40 +165,58 @@ flowchart TD
 
 ### 4. Architecture Diagram (Sơ đồ kiến trúc phân tầng)
 
-Sơ đồ thể hiện luồng dữ liệu và trách nhiệm của từng tầng trong kiến trúc ứng dụng (UI $\rightarrow$ Provider $\rightarrow$ Repository $\rightarrow$ Service $\rightarrow$ Databases):
+Sơ đồ thể hiện luồng dữ liệu và trách nhiệm của từng tầng trong kiến trúc ứng dụng (UI $\rightarrow$ Provider $\rightarrow$ Repository $\rightarrow$ Service $\rightarrow$ Databases).
+
+> [!NOTE]
+> **Ngoại lệ về luồng xử lý:** `NotificationProvider` là một ngoại lệ đặc biệt. Nó không đi qua lớp Repository mà trực tiếp lắng nghe các thay đổi trạng thái nhiệm vụ thông qua Firestore snapshots stream, sau đó ghi các bản ghi thông báo mới trực tiếp vào SQLite local thông qua `SQLiteService`.
 
 ```mermaid
 flowchart TD
     subgraph UI_Layer ["Tầng Giao Diện (UI Layer)"]
-        Screens["Giao diện (Screens)<br>widgets/ | screens/"]
+        Screens["Giao diện (Screens / Widgets)"]
     end
 
     subgraph State_Layer ["Tầng Quản Lý Trạng Thái (State Provider Layer)"]
-        Providers["Providers<br>(ChangeNotifier / ProxyProvider)"]
+        Providers["Providers<br>(AuthProvider, ProjectProvider, TaskProvider, ConnectivityProvider)"]
+        NotifProvider["NotificationProvider<br><i>(Ngoại lệ: Lắng nghe Firestore tasks trực tiếp & ghi SQLite local)</i>"]
     end
 
     subgraph Repos_Layer ["Tầng Nghiệp Vụ & Dữ Liệu (Repository Layer)"]
-        Repositories["Repositories<br>(ProjectRepository / TaskRepository)"]
+        AuthRepo["AuthRepository"]
+        UserRepo["UserRepository"]
+        ProjRepo["ProjectRepository"]
+        TaskRepo["TaskRepository"]
     end
 
     subgraph Service_Layer ["Tầng Dịch Vụ Hạ Tầng (Service Layer)"]
-        SQLiteService["SQLiteService (Local Data Cache)"]
-        FirebaseService["FirebaseService (Remote Data Sync)"]
-        ConnectivityService["ConnectivityService (Network Status)"]
+        SQLiteService["SQLiteService<br>(Local Cache)"]
+        FirebaseService["FirebaseService<br>(Firestore/Auth API)"]
+        ConnectivityService["ConnectivityService"]
     end
 
     subgraph Persistence_Layer ["Tầng Lưu Trữ (Persistence Storage Layer)"]
         LocalDB[("Local DB (SQLite)")]
-        RemoteDB[("Cloud Firestore & Auth")]
+        RemoteDB[("Cloud Firestore & Firebase Auth")]
     end
 
-    Screens --> |Gọi các hàm và lắng nghe trạng thái| Providers
-    Providers --> |Gọi logic xử lý dữ liệu| Repositories
-    Repositories --> |Đọc/Ghi dữ liệu local/remote| SQLiteService
-    Repositories --> |Đọc/Ghi dữ liệu local/remote| FirebaseService
-    Repositories -.-> |Kiểm tra trạng thái mạng| ConnectivityService
-    SQLiteService --> |Lưu trữ dữ liệu ngoại tuyến| LocalDB
-    FirebaseService --> |Lưu trữ dữ liệu trực tuyến| RemoteDB
+    %% Luồng đi chuẩn: UI -> Provider -> Repository -> Service -> Firebase/SQLite
+    Screens --> Providers
+    Providers --> AuthRepo
+    Providers --> UserRepo
+    Providers --> ProjRepo
+    Providers --> TaskRepo
+
+    AuthRepo & UserRepo & ProjRepo & TaskRepo --> SQLiteService
+    AuthRepo & UserRepo & ProjRepo & TaskRepo --> FirebaseService
+    
+    %% Luồng đi của ngoại lệ Notification
+    Screens --> NotifProvider
+    RemoteDB -.-> |snapshots: Lắng nghe realtime| NotifProvider
+    NotifProvider --> |Ghi nhận thông báo| SQLiteService
+
+    SQLiteService --> LocalDB
+    FirebaseService --> RemoteDB
+    ConnectivityService -.-> |Theo dõi mạng| SQLiteService & FirebaseService
 
     %% CSS Styling
     style UI_Layer fill:#f8fafc,stroke:#334155,stroke-width:1.5px
@@ -272,6 +290,31 @@ flowchart LR
 
 ---
 
+### 6b. Notification Flow Diagram (Sơ đồ luồng xử lý thông báo thực tế)
+
+Sơ đồ chi tiết cơ chế lắng nghe thay đổi nhiệm vụ trực tiếp và lưu trữ thông báo cục bộ của `NotificationProvider`:
+
+```mermaid
+flowchart TD
+    Step1["Firestore: Trạng thái Task thay đổi (CRUD từ xa)"] --> Step2["NotificationProvider: Lắng nghe snapshot qua StreamSubscription"]
+    Step2 --> Step3["NotificationProvider: So sánh trạng thái Task hiện tại và trước đó (previousTasks)"]
+    Step3 --> Step4{"Trạng thái thay đổi hợp lệ?"}
+    Step4 -- "Có (giao việc, từ chối, duyệt, chờ duyệt)" --> Step5["SQLite: Tạo notification_local (cacheNotification)"]
+    Step4 -- "Không" --> StepDone([Bỏ qua])
+    Step5 --> Step6["UI: Màn hình thông báo / Badge hiển thị tức thì"]
+    Step6 --> StepDone
+
+    style Step1 fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px
+    style Step2 fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px
+    style Step3 fill:#f0f9ff,stroke:#0284c7,stroke-width:1.5px
+    style Step4 fill:#fffbeb,stroke:#d97706,stroke-width:1.5px
+    style Step5 fill:#ecfdf5,stroke:#059669,stroke-width:1.5px
+    style Step6 fill:#fdf2f8,stroke:#db2777,stroke-width:1.5px
+    style StepDone fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px
+```
+
+---
+
 ### 7. Deployment Diagram (Sơ đồ triển khai vật lý)
 
 Sơ đồ phân bố vật lý của các môi trường ứng dụng chạy ở client và lưu trữ đám mây phía server:
@@ -279,7 +322,7 @@ Sơ đồ phân bố vật lý của các môi trường ứng dụng chạy ở
 ```mermaid
 flowchart TD
     subgraph ClientNode ["Thiết bị khách hàng (Client Node)"]
-        AndroidDevice["Thiết bị di động Android<br>(Android OS 21+)"]
+        AndroidDevice["Thiết bị di động Android<br>(Hỗ trợ Flutter runtime / minSdk của dự án)"]
         subgraph AppRuntime ["Môi trường chạy App (TaskFlow App)"]
             FlutterApp["Ứng dụng Flutter / Dart VM"]
             SQLiteDB[("SQLite Database file<br>(taskflow.db)")]
