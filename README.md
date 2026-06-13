@@ -125,7 +125,7 @@ GitHub Actions được sử dụng để tự động hóa quá trình kiểm t
 - # 📂 4. Cấu Trúc Thư Mục Hệ Thống
 
 Dự án TaskFlow được xây dựng theo mô hình phân tầng (Layered Architecture), giúp tách biệt giao diện người dùng, xử lý nghiệp vụ và quản lý dữ liệu. Cấu trúc thư mục được tổ chức rõ ràng nhằm tăng khả năng bảo trì, mở rộng và hỗ trợ làm việc nhóm hiệu quả.
-
+```text
 lib/                              # Thư mục chứa toàn bộ mã nguồn chính của dự án TaskFlow
 ├── core/                         # Các tài nguyên, cấu hình cấu trúc dùng chung toàn app
 │   ├── app_colors.dart           # Định nghĩa bảng màu sắc chủ đạo của ứng dụng
@@ -134,53 +134,54 @@ lib/                              # Thư mục chứa toàn bộ mã nguồn ch�
 │   └── utils/                    # Các tiện ích, công cụ bổ trợ
 │       └── data_printer.dart     # Công cụ hỗ trợ in/format dữ liệu ra log để kiểm tra
 ├── models/                       # Định nghĩa các thực thể dữ liệu (Data Models)
-│   ├── project_model.dart        # Model thông tin dự án (Tên dự án, hạn chót, danh sách task...)
-│   ├── task_model.dart           # Model thông tin công việc (Tiêu đề, mô tả, trạng thái, ngày tạo...)
-│   └── user_model.dart           # Model thông tin thành viên, người dùng hệ thống
-├── providers/                    # Tầng quản lý trạng thái ứng dụng (State Management)
-│   ├── auth_provider.dart        # Quản lý trạng thái Đăng nhập, Đăng ký và phân quyền
-│   ├── project_provider.dart     # Quản lý trạng thái, logic danh sách các dự án
-│   ├── task_provider.dart        # Quản lý logic xử lý công việc (thêm, sửa, xóa, chuyển trạng thái)
-│   ├── theme_provider.dart       # Quản lý chuyển đổi giao diện Sáng / Tối (Light/Dark mode)
-│   └── _readme.dart              # File hướng dẫn lưu ý riêng cho phân hệ Provider
-├── repositories/                 # Tầng trung gian kết nối giữa Service dữ liệu và Provider
-│   ├── auth_repository.dart      # Interface (khuôn mẫu) cho các tính năng xác thực
-│   ├── project_repository.dart   # Interface quản lý vòng đời của dự án
-│   ├── task_repository.dart      # Interface định nghĩa các thao tác với công việc
-│   ├── user_repository.dart      # Interface xử lý thông tin tài khoản người dùng
-│   └── impl/                     # Nơi hiện thực hóa chi tiết các Interface (Implementation)
-│       ├── auth_repository_impl.dart    # Triển khai chi tiết logic xác thực người dùng
-│       ├── project_repository_impl.dart # Triển khai chi tiết việc lưu/đọc dữ liệu dự án
-│       ├── task_repository_impl.dart    # Triển khai chi tiết lưu/đọc và cập nhật công việc
-│       └── user_repository_impl.dart    # Triển khai chi tiết việc quản lý danh sách user
-├── screens/                      # Phân hệ giao diện các màn hình chính (Presentation Layer)
-│   ├── home_screen.dart          # Màn hình chính/Trang chủ hiển thị tổng quan thông tin
-│   ├── login_screen.dart         # Màn hình đăng nhập hệ thống
-│   ├── main_screen.dart          # Màn hình khung điều hướng chính (chứa Bottom Navigation)
-│   ├── profile_screen.dart       # Giao diện thông tin cá nhân và cài đặt tài khoản
-│   ├── project_list_screen.dart  # Giao diện danh sách tất cả các dự án đang tham gia
-│   ├── project_task_screen.dart  # Màn hình hiển thị danh sách công việc thuộc về một dự án cụ thể
-│   ├── register_screen.dart      # Giao diện đăng ký tài khoản mới cho thành viên
-│   ├── task_detail_screen.dart   # Màn hình xem và chỉnh sửa chi tiết một công việc
-│   └── user_list_screen.dart     # Màn hình danh sách thành viên trong hệ thống/nhóm
-├── services/                     # Tầng kết nối cơ sở dữ liệu và các dịch vụ nền
-│   ├── auth_service.dart         # Xử lý logic nghiệp vụ đăng nhập, đăng ký và bảo mật
-│   ├── firebase_seed_data.dart   # Tự động nạp dữ liệu mẫu lên cơ sở dữ liệu Firebase
-│   ├── firebase_service.dart     # Cấu hình và xử lý kết nối dữ liệu đám mây Firebase
-│   ├── sqlite_service.dart       # Quản lý và thao tác với cơ sở dữ liệu offline SQLite tại máy
-│   └── _readme.dart              # Ghi chú hướng dẫn thiết lập hệ thống dịch vụ dữ liệu
-├── theme/                        # Cấu hình giao diện tổng thể của ứng dụng
-│   └── app_theme.dart            # Thiết lập chi tiết ThemeData (Màu sắc, nút bấm, appBar...)
-├── widgets/                      # Các thành phần giao diện nhỏ, có thể tái sử dụng
-│   ├── _readme.dart              # Ghi chú quy định khi tạo widget dùng chung
-│   └── common/                   # Các widget dùng chung cho nhiều màn hình khác nhau
-│       ├── app_footer.dart       # Phần chân trang (Footer) chuẩn hóa của ứng dụng
-│       ├── main_layout.dart      # Layout nền/khung chuẩn cho các màn hình
-│       └── task_card.dart        # Thẻ hiển thị nhanh thông tin của một công việc
-├── app.dart                      # Cấu hình khai báo các Provider toàn cục và Router định tuyến app
-├── firebase_options.dart         # File tự động sinh chứa cấu hình kết nối ứng dụng với Firebase
-├── main.dart                     # Tệp chạy chính, khởi tạo các dịch vụ nền (Database) và chạy app
-└── run_my_task.dart              # File script hoặc hàm phụ trợ chạy nhanh/test các task cụ thể
+│   ├── project_model.dart        # Model thông tin dự án
+│   ├── task_model.dart           # Model thông tin công việc
+│   └── user_model.dart           # Model thông tin người dùng
+├── providers/                    # Tầng quản lý trạng thái ứng dụng
+│   ├── auth_provider.dart
+│   ├── project_provider.dart
+│   ├── task_provider.dart
+│   ├── theme_provider.dart
+│   └── _readme.dart
+├── repositories/
+│   ├── auth_repository.dart
+│   ├── project_repository.dart
+│   ├── task_repository.dart
+│   ├── user_repository.dart
+│   └── impl/
+│       ├── auth_repository_impl.dart
+│       ├── project_repository_impl.dart
+│       ├── task_repository_impl.dart
+│       └── user_repository_impl.dart
+├── screens/
+│   ├── home_screen.dart
+│   ├── login_screen.dart
+│   ├── main_screen.dart
+│   ├── profile_screen.dart
+│   ├── project_list_screen.dart
+│   ├── project_task_screen.dart
+│   ├── register_screen.dart
+│   ├── task_detail_screen.dart
+│   └── user_list_screen.dart
+├── services/
+│   ├── auth_service.dart
+│   ├── firebase_seed_data.dart
+│   ├── firebase_service.dart
+│   ├── sqlite_service.dart
+│   └── _readme.dart
+├── theme/
+│   └── app_theme.dart
+├── widgets/
+│   ├── _readme.dart
+│   └── common/
+│       ├── app_footer.dart
+│       ├── main_layout.dart
+│       └── task_card.dart
+├── app.dart
+├── firebase_options.dart
+├── main.dart
+└── run_my_task.dart
+```
 
 # 🛠️ 5. Phân Tích Chức Năng Chi Tiết Từng File Code
 
