@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/task_model.dart';
+import '../models/user_model.dart';
 import '../repositories/impl/task_repository_impl.dart';
 
 /// Provider quản lý trạng thái danh sách Task cho toàn app.
@@ -17,6 +18,16 @@ class TaskProvider extends ChangeNotifier {
   String? _lastProjectId;
   String? _lastUserId;
   bool _loadedAll = false;
+
+  bool isHomeTaskScopeFor(UserModel user) {
+    return user.isManager
+        ? _loadedAll && _lastProjectId == null && _lastUserId == null
+        : _lastUserId == user.id && _lastProjectId == null && !_loadedAll;
+  }
+
+  Future<void> loadHomeTasks(UserModel user) {
+    return user.isManager ? loadAllTasks() : loadMyTasks(user.id);
+  }
 
   // Lưu trữ thống kê tiến độ từng dự án
   final Map<String, Map<String, dynamic>> _projectStats = {};
@@ -71,7 +82,10 @@ class TaskProvider extends ChangeNotifier {
 
   /// Tạo Task mới
   Future<void> createTask(String title, String description, String projectId,
-      String assignedTo, DateTime deadline, {String assigneeName = '', String assigneeAvatar = '', bool isUrgent = false}) async {
+      String assignedTo, DateTime deadline,
+      {String assigneeName = '',
+      String assigneeAvatar = '',
+      bool isUrgent = false}) async {
     final newTask = Task(
       id: '',
       title: title,
@@ -86,10 +100,11 @@ class TaskProvider extends ChangeNotifier {
     );
     await _taskRepository.addTask(newTask);
     _tasks.add(newTask);
-    
+
     // Cập nhật lại stats nếu đã có trong cache
     if (_projectStats.containsKey(projectId)) {
-      _projectStats[projectId] = await _taskRepository.getProjectStatistics(projectId);
+      _projectStats[projectId] =
+          await _taskRepository.getProjectStatistics(projectId);
     }
     notifyListeners();
   }
@@ -102,7 +117,8 @@ class TaskProvider extends ChangeNotifier {
     final projectId = updatedTask.projectId;
     // Cập nhật lại stats nếu đã có trong cache
     if (_projectStats.containsKey(projectId)) {
-      _projectStats[projectId] = await _taskRepository.getProjectStatistics(projectId);
+      _projectStats[projectId] =
+          await _taskRepository.getProjectStatistics(projectId);
     }
     notifyListeners();
   }
@@ -129,10 +145,11 @@ class TaskProvider extends ChangeNotifier {
       final projectId = _tasks[index].projectId;
       await _taskRepository.deleteTask(taskId);
       _tasks.removeAt(index);
-      
+
       // Cập nhật lại stats nếu đã có trong cache
       if (_projectStats.containsKey(projectId)) {
-        _projectStats[projectId] = await _taskRepository.getProjectStatistics(projectId);
+        _projectStats[projectId] =
+            await _taskRepository.getProjectStatistics(projectId);
       }
       notifyListeners();
     }
@@ -186,10 +203,11 @@ class TaskProvider extends ChangeNotifier {
       if (await task.updateStatus(newStatus)) {
         await _taskRepository.updateTask(task);
         _upsertTask(task);
-        
+
         // Cập nhật lại stats nếu đã có trong cache
         if (_projectStats.containsKey(projectId)) {
-          _projectStats[projectId] = await _taskRepository.getProjectStatistics(projectId);
+          _projectStats[projectId] =
+              await _taskRepository.getProjectStatistics(projectId);
         }
         notifyListeners();
         return true;
@@ -212,7 +230,8 @@ class TaskProvider extends ChangeNotifier {
         _upsertTask(task);
 
         if (_projectStats.containsKey(projectId)) {
-          _projectStats[projectId] = await _taskRepository.getProjectStatistics(projectId);
+          _projectStats[projectId] =
+              await _taskRepository.getProjectStatistics(projectId);
         }
         notifyListeners();
         return true;
@@ -235,7 +254,8 @@ class TaskProvider extends ChangeNotifier {
         _upsertTask(task);
 
         if (_projectStats.containsKey(projectId)) {
-          _projectStats[projectId] = await _taskRepository.getProjectStatistics(projectId);
+          _projectStats[projectId] =
+              await _taskRepository.getProjectStatistics(projectId);
         }
         notifyListeners();
         return true;

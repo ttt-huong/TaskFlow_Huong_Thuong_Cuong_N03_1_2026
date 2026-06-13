@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/app_colors.dart';
+import 'core/navigation/app_route_observer.dart';
 import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
@@ -15,6 +16,7 @@ class MyApp extends StatelessWidget {
       title: 'TaskFlow',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: AppColors.primary, useMaterial3: true),
+      navigatorObservers: [appRouteObserver],
       // Màn hình ban đầu: kiểm tra đăng nhập
       home: Consumer<AuthProvider>(
         builder: (context, auth, _) {
