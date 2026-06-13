@@ -52,7 +52,8 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _showCreateTaskSheet(BuildContext context) {
-    final projectProvider = Provider.of<ProjectProvider>(context, listen: false);
+    final projectProvider =
+        Provider.of<ProjectProvider>(context, listen: false);
     final taskProvider = Provider.of<TaskProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
@@ -145,7 +146,8 @@ class _MainScreenState extends State<MainScreen> {
                               color: AppColors.primary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(Icons.task_alt_rounded, color: AppColors.primary, size: 20),
+                            child: const Icon(Icons.task_alt_rounded,
+                                color: AppColors.primary, size: 20),
                           ),
                           const SizedBox(width: 12),
                           const Text(
@@ -171,8 +173,10 @@ class _MainScreenState extends State<MainScreen> {
                           icon: Icons.title_rounded,
                         ),
                         validator: (v) {
-                          if (v == null || v.trim().isEmpty) return 'Vui lòng nhập tiêu đề';
-                          if (v.trim().length < 3) return 'Tiêu đề quá ngắn (tối thiểu 3 ký tự)';
+                          if (v == null || v.trim().isEmpty)
+                            return 'Vui lòng nhập tiêu đề';
+                          if (v.trim().length < 3)
+                            return 'Tiêu đề quá ngắn (tối thiểu 3 ký tự)';
                           return null;
                         },
                       ),
@@ -196,20 +200,26 @@ class _MainScreenState extends State<MainScreen> {
                       const SizedBox(height: 6),
                       DropdownButtonFormField<String>(
                         initialValue: selectedProjectId,
-                        hint: const Text('Chọn dự án', style: TextStyle(color: AppColors.secondaryText, fontSize: 14)),
+                        hint: const Text('Chọn dự án',
+                            style: TextStyle(
+                                color: AppColors.secondaryText, fontSize: 14)),
                         decoration: _sheetInputDecoration(
                           hint: '',
                           icon: Icons.folder_outlined,
                         ),
-                        items: projects.map((p) => DropdownMenuItem(
-                          value: p.id,
-                          child: Text(p.name, overflow: TextOverflow.ellipsis),
-                        )).toList(),
+                        items: projects
+                            .map((p) => DropdownMenuItem(
+                                  value: p.id,
+                                  child: Text(p.name,
+                                      overflow: TextOverflow.ellipsis),
+                                ))
+                            .toList(),
                         onChanged: (val) => setSheetState(() {
                           selectedProjectId = val;
                           selectedUserId = null; // reset assignee khi đổi dự án
                         }),
-                        validator: (v) => v == null ? 'Vui lòng chọn dự án' : null,
+                        validator: (v) =>
+                            v == null ? 'Vui lòng chọn dự án' : null,
                       ),
                       const SizedBox(height: 14),
 
@@ -224,40 +234,49 @@ class _MainScreenState extends State<MainScreen> {
                               : assignableUsers.isEmpty
                                   ? 'Dự án chưa có thành viên'
                                   : 'Chọn thành viên',
-                          style: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
+                          style: const TextStyle(
+                              color: AppColors.secondaryText, fontSize: 14),
                         ),
                         decoration: _sheetInputDecoration(
                           hint: '',
                           icon: Icons.person_outline_rounded,
                         ),
-                        items: assignableUsers.map((u) => DropdownMenuItem(
-                          value: u.id,
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 12,
-                                backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-                                child: Text(
-                                  u.name.isNotEmpty ? u.name[0].toUpperCase() : '?',
-                                  style: const TextStyle(
-                                    color: AppColors.primary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
+                        items: assignableUsers
+                            .map((u) => DropdownMenuItem(
+                                  value: u.id,
+                                  child: Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 12,
+                                        backgroundColor: AppColors.primary
+                                            .withValues(alpha: 0.15),
+                                        child: Text(
+                                          u.name.isNotEmpty
+                                              ? u.name[0].toUpperCase()
+                                              : '?',
+                                          style: const TextStyle(
+                                            color: AppColors.primary,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      SizedBox(
+                                        width: 180,
+                                        child: Text(u.name,
+                                            overflow: TextOverflow.ellipsis),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              SizedBox(
-                                width: 180,
-                                child: Text(u.name, overflow: TextOverflow.ellipsis),
-                              ),
-                            ],
-                          ),
-                        )).toList(),
+                                ))
+                            .toList(),
                         onChanged: selectedProjectId == null
                             ? null
-                            : (val) => setSheetState(() => selectedUserId = val),
-                        validator: (v) => v == null ? 'Vui lòng chọn người thực hiện' : null,
+                            : (val) =>
+                                setSheetState(() => selectedUserId = val),
+                        validator: (v) =>
+                            v == null ? 'Vui lòng chọn người thực hiện' : null,
                       ),
                       const SizedBox(height: 14),
 
@@ -280,11 +299,13 @@ class _MainScreenState extends State<MainScreen> {
                               child: child!,
                             ),
                           );
-                          if (d != null) setSheetState(() => selectedDeadline = d);
+                          if (d != null)
+                            setSheetState(() => selectedDeadline = d);
                         },
                         borderRadius: BorderRadius.circular(12),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 14),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF8F9FD),
                             borderRadius: BorderRadius.circular(12),
@@ -292,7 +313,8 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.calendar_today_rounded, size: 18, color: AppColors.secondaryText),
+                              const Icon(Icons.calendar_today_rounded,
+                                  size: 18, color: AppColors.secondaryText),
                               const SizedBox(width: 12),
                               Text(
                                 '${selectedDeadline.day.toString().padLeft(2, '0')}/${selectedDeadline.month.toString().padLeft(2, '0')}/${selectedDeadline.year}',
@@ -303,7 +325,8 @@ class _MainScreenState extends State<MainScreen> {
                                 ),
                               ),
                               const Spacer(),
-                              const Icon(Icons.chevron_right_rounded, color: AppColors.secondaryText, size: 20),
+                              const Icon(Icons.chevron_right_rounded,
+                                  color: AppColors.secondaryText, size: 20),
                             ],
                           ),
                         ),
@@ -312,7 +335,8 @@ class _MainScreenState extends State<MainScreen> {
 
                       // ── Mức độ ưu tiên ──
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 6),
                         decoration: BoxDecoration(
                           color: isUrgent
                               ? const Color(0xFFFFF3E0)
@@ -328,7 +352,9 @@ class _MainScreenState extends State<MainScreen> {
                           children: [
                             Icon(
                               Icons.priority_high_rounded,
-                              color: isUrgent ? Colors.orange.shade700 : AppColors.secondaryText,
+                              color: isUrgent
+                                  ? Colors.orange.shade700
+                                  : AppColors.secondaryText,
                               size: 20,
                             ),
                             const SizedBox(width: 10),
@@ -337,14 +363,17 @@ class _MainScreenState extends State<MainScreen> {
                                 'Nhiệm vụ khẩn cấp',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w600,
-                                  color: isUrgent ? Colors.orange.shade700 : AppColors.text,
+                                  color: isUrgent
+                                      ? Colors.orange.shade700
+                                      : AppColors.text,
                                   fontSize: 14,
                                 ),
                               ),
                             ),
                             Switch(
                               value: isUrgent,
-                              onChanged: (v) => setSheetState(() => isUrgent = v),
+                              onChanged: (v) =>
+                                  setSheetState(() => isUrgent = v),
                               activeThumbColor: Colors.orange,
                             ),
                           ],
@@ -365,7 +394,8 @@ class _MainScreenState extends State<MainScreen> {
 
                                   final title = titleController.text.trim();
                                   final desc = descController.text.trim();
-                                  final user = allUsers.firstWhere((u) => u.id == selectedUserId!);
+                                  final user = allUsers.firstWhere(
+                                      (u) => u.id == selectedUserId!);
 
                                   await taskProvider.createTask(
                                     title,
@@ -374,7 +404,9 @@ class _MainScreenState extends State<MainScreen> {
                                     selectedUserId!,
                                     selectedDeadline,
                                     assigneeName: user.name,
-                                    assigneeAvatar: user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+                                    assigneeAvatar: user.name.isNotEmpty
+                                        ? user.name[0].toUpperCase()
+                                        : '?',
                                     isUrgent: isUrgent,
                                   );
 
@@ -386,14 +418,21 @@ class _MainScreenState extends State<MainScreen> {
                                       SnackBar(
                                         content: Row(
                                           children: [
-                                            const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                                            const Icon(
+                                                Icons.check_circle_rounded,
+                                                color: Colors.white,
+                                                size: 18),
                                             const SizedBox(width: 8),
-                                            Flexible(child: Text('Đã tạo: "$title"')),
+                                            Flexible(
+                                                child:
+                                                    Text('Đã tạo: "$title"')),
                                           ],
                                         ),
                                         backgroundColor: AppColors.done,
                                         behavior: SnackBarBehavior.floating,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12)),
                                       ),
                                     );
                                   }
@@ -401,7 +440,8 @@ class _MainScreenState extends State<MainScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
-                            disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
+                            disabledBackgroundColor:
+                                AppColors.primary.withValues(alpha: 0.6),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
@@ -423,7 +463,9 @@ class _MainScreenState extends State<MainScreen> {
                                     SizedBox(width: 8),
                                     Text(
                                       'Tạo nhiệm vụ',
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16),
                                     ),
                                   ],
                                 ),
@@ -453,7 +495,8 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  static InputDecoration _sheetInputDecoration({required String hint, required IconData icon}) {
+  static InputDecoration _sheetInputDecoration(
+      {required String hint, required IconData icon}) {
     return InputDecoration(
       hintText: hint,
       hintStyle: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
@@ -559,12 +602,9 @@ class _MainScreenState extends State<MainScreen> {
             if (i == 0) {
               final user = authProvider.currentUser;
               if (user != null) {
-                final taskProvider = Provider.of<TaskProvider>(context, listen: false);
-                if (user.isManager) {
-                  taskProvider.loadAllTasks();
-                } else {
-                  taskProvider.loadMyTasks(user.id);
-                }
+                final taskProvider =
+                    Provider.of<TaskProvider>(context, listen: false);
+                taskProvider.loadHomeTasks(user);
               }
             }
           }
@@ -632,15 +672,21 @@ class _CustomBottomNavBar extends StatelessWidget {
                       children: [
                         Icon(
                           active ? item.activeIcon : item.icon,
-                          color: active ? AppColors.primary : AppColors.secondaryText,
+                          color: active
+                              ? AppColors.primary
+                              : AppColors.secondaryText,
                           size: 24, // Kích thước icon 24px theo thiết kế
                         ),
-                        const SizedBox(height: 2), // Khoảng cách 2px theo thiết kế
+                        const SizedBox(
+                            height: 2), // Khoảng cách 2px theo thiết kế
                         Text(
                           item.label,
                           style: TextStyle(
-                            color: active ? AppColors.primary : AppColors.secondaryText,
-                            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                            color: active
+                                ? AppColors.primary
+                                : AppColors.secondaryText,
+                            fontWeight:
+                                active ? FontWeight.w700 : FontWeight.w500,
                             fontSize: 12, // Kích thước font 12px theo thiết kế
                           ),
                         ),
@@ -657,4 +703,3 @@ class _CustomBottomNavBar extends StatelessWidget {
     );
   }
 }
-
