@@ -1,65 +1,132 @@
 # BÁO CÁO BÀI TẬP LỚN CUỐI KỲ
 ## MÔN: PHÁT TRIỂN ỨNG DỤNG TRÊN THIẾT BỊ DI ĐỘNG (LỚP N03)
-## ĐỀ TÀI: HỆ THỐNG QUẢN LÝ CÔNG VIỆC DỰ ÁN - TASKFLOW
+## ĐỀ TÀI: XÂY DỰNG VÀ PHÁT TRIỂN ỨNG DỤNG QUẢN LÝ CÔNG VIỆC NHÓM NHỎ TASKFLOW
 
 **Thành viên thực hiện (Nhóm N03):** 
-1. Trần Thị Thu Hường
-2. Nguyễn Thị Thương
-3. Nguyễn Việt Cường
+1. Trần Thị Thu Hường (Trưởng nhóm)
+2. Nguyễn Việt Cường
+3. Nguyễn Thị Thương
 
 ---
+
+## PHÂN CHIA CÔNG VIỆC TRONG NHÓM
+
+Dưới đây là chi tiết phân chia công việc và đóng góp kỹ thuật của các thành viên trong nhóm thực hiện dự án **TaskFlow**:
+
+| Thành viên | Vai trò | Nhiệm vụ chính & Đóng góp kỹ thuật | Tỷ lệ đóng góp |
+| :--- | :--- | :--- | :--- |
+| **Trần Thị Thu Hường** | Trưởng nhóm (Team Leader) | - Quản lý tiến độ dự án, thiết lập kiến trúc phân lớp hệ thống (`UI → Provider → Repository → Service`).<br>- Thiết kế cấu trúc cơ sở dữ liệu cục bộ **SQLite Schema** và đám mây **Firestore Document Schema** cho các đối tượng: `User`, `Project`, `Task`, `Notification`.<br>- Phát triển và cấu hình các lớp logic xử lý dữ liệu: `SQLiteService`, `FirebaseService`, và triển khai toàn bộ các Repository (`LocalTaskRepository`, `LocalProjectRepository`, `LocalUserRepository`).<br>- Nghiên cứu và xây dựng công cụ đồng bộ dữ liệu ngoại tuyến **Offline-First (Offline-First Sync Engine)** giữa SQLite cục bộ và Cloud Firestore.<br>- Trực tiếp cấu hình và tích hợp **Firebase (Auth, Firestore)** để đồng bộ dữ liệu thời gian thực (real-time stream).<br>- Phát triển giao diện các màn hình cốt lõi:<br>&nbsp;&nbsp;+ `MainScreen`: Khung giao diện nổi phân quyền theo vai trò (Role-based Navigation).<br>&nbsp;&nbsp;+ `HomeScreen`: Dashboard tổng quan thống kê hiệu suất dạng biểu đồ tròn.<br>&nbsp;&nbsp;+ `ProjectTaskScreen`: Chi tiết công việc dự án (dạng Kanban cuộn ngang & Lịch biểu Calendar Tab).<br>&nbsp;&nbsp;+ `TaskDetailScreen`: Chi tiết nhiệm vụ và trục lịch sử trạng thái (Timeline).<br>&nbsp;&nbsp;+ `LoginScreen` & `RegisterScreen`: Đăng ký, đăng nhập và xác thực phiên hoạt động.<br>&nbsp;&nbsp;+ `UserListScreen` & `MemberTasksScreen`: Quản lý danh sách thành viên và theo dõi chi tiết task của từng người.<br>- Tối ưu hóa ràng buộc kiểm tra nghiệp vụ trên Client (**Constraint Check**): Ngăn chặn hành động xóa thành viên khỏi dự án nếu người đó đang có các Task dở dang (`todo`, `doing`, `reviewing`) để tránh lỗi "Task mồ côi", và biên soạn kịch bản video demo (`KICH_BAN_VIDEO_DEMO.md`). | 50% |
+| **Nguyễn Việt Cường** | Nhà phát triển giao diện & UML (Frontend Developer & UML Designer) | - Thiết kế và vẽ toàn bộ các sơ đồ UML của hệ thống (sơ đồ Use Case tổng quan, sơ đồ cấu trúc lớp Class Diagram, các sơ đồ tuần tự Sequence Diagrams và sơ đồ hoạt động Activity Diagrams).<br>- Hỗ trợ xây dựng giao diện danh sách dự án (`ProjectListScreen`) và hiển thị thanh tiến độ phần trăm hoàn thành công việc (`LinearProgressIndicator`). | 25% |
+| **Nguyễn Thị Thương** | Nhà thiết kế UI/UX & Tài liệu hệ thống (UI/UX Designer & Document Specialist) | - Thiết kế giao diện nguyên mẫu trên Figma (Wireframes & UI Design) và sơ đồ luồng hoạt động ứng dụng.<br>- Phát triển giao diện các màn hình:<br>&nbsp;&nbsp;+ `ProfileScreen` & `EditProfileScreen`: Trang hồ sơ cá nhân, chỉnh sửa thông tin và đổi mật khẩu offline.<br>&nbsp;&nbsp;+ `NotificationScreen`: Trung tâm thông báo và danh sách thông báo thay đổi trạng thái task.<br>- Xây dựng tính năng Thông báo cục bộ (**Local Notifications**) thông qua `NotificationProvider` tự động lắng nghe sự kiện thay đổi dữ liệu.<br>- Biên soạn và hiệu chỉnh hệ thống tài liệu báo cáo: Báo cáo bài tập lớn cuối kỳ (`bao_cao_bai_tap_lon_cuoi_ky.md`), tài liệu thiết kế cơ sở dữ liệu (`database_report.md`), sơ đồ UML (`uml_va_luong_hoat_dong.md`). | 25% |
+
+---
+
 
 ## CÂU 1: TRÌNH BÀY USER STORIES (CÂU CHUYỆN NGƯỜI DÙNG)
 
 Hệ thống **TaskFlow** được thiết kế phân quyền rõ ràng thành hai vai trò cốt lõi: **Manager (Quản lý)** và **Member (Thành viên nhóm)**. Các câu chuyện người dùng được xây dựng để đảm bảo tính cộng tác và quản lý tối ưu:
 
 ### 1. Vai trò Manager (Quản lý dự án)
-* **US-M1: Đăng nhập phân quyền**
-  * *Là một* Manager, *tôi muốn* đăng nhập hệ thống bằng email và mật khẩu, *để* tôi có thể truy cập các tính năng quản lý cao cấp như tạo dự án, phân công công việc và phê duyệt.
-* **US-M2: Tạo dự án mới và chọn thành viên**
-  * *Là một* Manager, *tôi muốn* tạo một dự án mới (nhập tên, mô tả) và tích chọn danh sách các thành viên sẽ tham gia dự án, *để* tôi có thể nhóm các thành viên và công việc có liên quan lại với nhau.
-* **US-M3: Tạo nhiệm vụ và phân công công việc**
-  * *Là một* Manager, *tôi muốn* tạo một nhiệm vụ mới trong dự án và gán cho một thành viên cụ thể trong danh sách thành viên dự án, *để* đảm bảo phân công đúng người đúng việc.
-* **US-M4: Chỉnh sửa và Tái phân công nhiệm vụ**
-  * *Là một* Manager, *tôi muốn* chỉnh sửa tiêu đề, mô tả, hạn chót hoặc thay đổi người nhận việc của một nhiệm vụ hiện có, *để* tôi có thể linh hoạt điều phối nhân sự khi kế hoạch thay đổi.
-* **US-M5: Phê duyệt/Từ chối kết quả công việc**
-  * *Là một* Manager, *tôi muốn* nhận thông báo khi thành viên nộp bài, xem chi tiết và lựa chọn duyệt (hoàn thành task) hoặc từ chối (yêu cầu sửa lại kèm lý do), *để* tôi có thể kiểm soát chất lượng đầu ra.
-* **US-M6: Theo dõi tiến độ và hiệu suất**
-  * *Là một* Manager, *tôi muốn* xem biểu đồ tiến độ phần trăm dự án và các chỉ số thống kê hiệu suất của từng thành viên, *để* nắm rõ tình hình dự án tổng thể.
+Hệ thống TaskFlow được xây dựng cho môi trường làm việc nhóm, trong đó Manager là người quản lý dự án, phân công nhiệm vụ, theo dõi tiến độ và kiểm duyệt kết quả thực hiện của các thành viên.
+
+#### Nhóm: Đăng nhập, phân quyền và quản lý phiên làm việc
+* **US-M1**: Là một Manager, tôi muốn đăng nhập bằng tài khoản đã được cấp quyền quản lý để có thể truy cập đúng các chức năng dành cho vai trò Manager.
+* **US-M2**: Là một Manager, tôi muốn hệ thống tự nhận diện vai trò sau khi đăng nhập để giao diện hiển thị các tab và thao tác quản lý phù hợp.
+
+#### Nhóm: Quản lý dự án và thành viên
+* **US-M3**: Là một Manager, tôi muốn tạo dự án mới với tên, mô tả và danh sách thành viên tham gia để tổ chức các công việc có liên quan vào cùng một không gian quản lý.
+* **US-M4**: Là một Manager, tôi muốn xem danh sách dự án kèm tiến độ hoàn thành để nhanh chóng nắm được tình trạng của từng dự án.
+* **US-M5**: Là một Manager, tôi muốn thêm hoặc loại bỏ thành viên khỏi dự án để điều chỉnh nhân sự theo nhu cầu thực tế của nhóm.
+* **US-M6**: Là một Manager, tôi muốn hệ thống ngăn xóa thành viên khi người đó còn task dở dang để tránh phát sinh task không còn người phụ trách.
+
+#### Nhóm: Quản lý nhiệm vụ và phân công công việc
+* **US-M7**: Là một Manager, tôi muốn tạo task mới trong dự án, nhập tiêu đề, mô tả, hạn chót và người được giao để phân công công việc rõ ràng cho từng thành viên.
+* **US-M8**: Là một Manager, tôi muốn chỉnh sửa thông tin task hoặc gán lại người thực hiện khi kế hoạch thay đổi để đảm bảo công việc luôn được cập nhật đúng thực tế.
+* **US-M9**: Là một Manager, tôi muốn xem task theo trạng thái todo, doing, reviewing và done để theo dõi luồng xử lý công việc theo dạng Kanban.
+* **US-M10**: Là một Manager, tôi muốn phê duyệt task khi thành viên gửi duyệt hoặc từ chối kèm lý do để kiểm soát chất lượng đầu ra.
+* **US-M14**: Là một Manager, tôi muốn tìm kiếm dự án và lọc các nhiệm vụ theo từ khóa để nhanh chóng định vị và kiểm tra tình trạng công việc.
+* **US-M15**: Là một Manager, tôi muốn xem lịch sử thay đổi trạng thái của từng nhiệm vụ (Timeline) để nắm được quá trình thực hiện từ khi tạo đến lúc hoàn thành.
+
+#### Nhóm: Theo dõi tiến độ, thông báo và đồng bộ
+* **US-M11**: Là một Manager, tôi muốn xem dashboard tổng quan về số lượng task, task quá hạn và tiến độ dự án để đánh giá tình hình làm việc của nhóm.
+* **US-M12**: Là một Manager, tôi muốn nhận thông báo khi có task mới, task gửi duyệt hoặc task bị thay đổi trạng thái để phản hồi kịp thời.
+* **US-M13**: Là một Manager, tôi muốn các thay đổi được lưu cục bộ trước và tự đồng bộ lên Firestore khi có mạng để có thể tiếp tục quản lý công việc trong điều kiện kết nối không ổn định.
+
+---
 
 ### 2. Vai trò Member (Thành viên thực hiện)
-* **US-ME1: Xem dự án và công việc chung**
-  * *Là một* Member, *tôi muốn* xem tất cả các dự án mà mình tham gia và toàn bộ các nhiệm vụ trong dự án đó, *để* tôi nắm rõ bối cảnh và có thể hỗ trợ đồng đội khi cần.
-* **US-ME2: Quản lý công việc cá nhân**
-  * *Là một* Member, *tôi muốn* lọc danh sách các công việc được giao cho riêng mình và xem chúng hiển thị trực quan trên Lịch biểu (Calendar View), *để* sắp xếp mức độ ưu tiên thực hiện.
-* **US-ME3: Nhận việc (Start Task)**
-  * *Là một* Member, *tôi muốn* chuyển trạng thái công việc của mình từ Cần làm (`todo`) sang Đang làm (`doing`), *để* Manager và đồng đội biết tôi đã bắt đầu thực hiện nhiệm vụ.
-* **US-ME4: Nộp bài (Submit Task)**
-  * *Là một* Member, *tôi muốn* chuyển trạng thái công việc từ Đang làm (`doing`) sang Chờ duyệt (`reviewing`), *để* gửi thông báo cho Manager kiểm tra và phê duyệt.
-* **US-ME5: Làm việc ngoại tuyến (Offline Mode)**
-  * *Là một* Member, *tôi muốn* tiếp tục đổi trạng thái công việc và ghi chép nội dung ngay cả khi thiết bị mất mạng, *để* công việc của tôi không bị gián đoạn và tự động đồng bộ lại khi có kết nối Internet.
+Member là người tham gia dự án, nhận nhiệm vụ từ Manager, cập nhật tiến độ thực hiện và gửi kết quả để Manager kiểm tra, phê duyệt.
+
+#### Nhóm: Xem dự án và công việc được giao
+* **US-ME1**: Là một Member, tôi muốn đăng nhập vào hệ thống để xem các dự án mà mình tham gia và các task được giao cho tôi.
+* **US-ME2**: Là một Member, tôi muốn xem danh sách task theo từng dự án để hiểu bối cảnh công việc và phối hợp với các thành viên khác.
+* **US-ME3**: Là một Member, tôi muốn xem chi tiết task gồm mô tả, deadline, trạng thái, người phụ trách và lý do từ chối nếu có để biết chính xác cần thực hiện điều gì.
+* **US-ME12**: Là một Member, tôi muốn xem lịch sử trạng thái (Timeline) của nhiệm vụ để kiểm tra lại thời gian bắt đầu, gửi duyệt hoặc các lý do từ chối từ Manager.
+
+#### Nhóm: Cập nhật trạng thái và gửi duyệt
+* **US-ME4**: Là một Member, tôi muốn chuyển task từ todo sang doing khi bắt đầu làm để Manager biết tôi đã nhận và đang xử lý công việc.
+* **US-ME5**: Là một Member, tôi muốn chuyển task từ doing sang reviewing khi hoàn thành để gửi kết quả cho Manager kiểm tra.
+* **US-ME6**: Là một Member, tôi muốn nhận lại task kèm lý do từ chối khi kết quả chưa đạt để có thể sửa đúng yêu cầu và gửi duyệt lại.
+* **US-ME10**: Là một Member, tôi muốn tìm kiếm và lọc các nhiệm vụ được giao theo trạng thái hoặc từ khóa để dễ dàng quản lý khối lượng công việc cá nhân.
+
+#### Nhóm: Lịch biểu, thông báo, hồ sơ và offline
+* **US-ME7**: Là một Member, tôi muốn xem task trên Calendar Tab theo ngày deadline để sắp xếp mức độ ưu tiên công việc.
+* **US-ME8**: Là một Member, tôi muốn nhận thông báo khi được giao việc hoặc khi task thay đổi trạng thái để không bỏ lỡ thông tin quan trọng.
+* **US-ME9**: Là một Member, tôi muốn cập nhật hồ sơ cá nhân và tiếp tục xem/cập nhật task khi mất mạng để quá trình làm việc không bị gián đoạn.
+* **US-ME11**: Là một Member, tôi muốn thay đổi mật khẩu tài khoản trực tiếp trong trang hồ sơ cá nhân (ngay cả khi offline nhờ cơ chế xác thực mã hóa cục bộ) để bảo mật tài khoản.
+* **US-ME13**: Là một Member, tôi muốn có thể click trực tiếp vào thông báo nhận được để ứng dụng tự động chuyển đến chi tiết nhiệm vụ tương ứng, đồng thời tự động đánh dấu thông báo là đã đọc.
 
 ---
 
 ## CÂU 2: PHÂN TÍCH YÊU CẦU, ĐỐI TƯỢNG, MỐI QUAN HỆ VÀ PHƯƠNG THỨC HOẠT ĐỘNG
 
-### 1. Phân tích yêu cầu hệ thống
-* **Yêu cầu chức năng:** Xác thực người dùng; quản lý dự án (CRUD); quản lý nhiệm vụ (CRUD); chuyển đổi trạng thái nhiệm vụ theo ma trận máy trạng thái (State Machine); trung tâm thông báo đẩy; thống kê trực quan.
-* **Yêu cầu phi chức năng:** Kiến trúc ngoại tuyến trước (Offline-First); đồng bộ hóa dữ liệu thời gian thực; bảo mật phân quyền cơ sở dữ liệu (Firestore Security Rules); giao diện người dùng cao cấp (Premium Glassmorphism).
+### 1. Tác nhân tham gia hệ thống (Actors)
+Hệ thống **TaskFlow** có 2 tác nhân chính tham gia vào quy trình quản lý công việc dự án và 1 tác nhân hệ thống tự động:
+* **Manager (Quản lý dự án):** Người sở hữu toàn quyền quản trị dự án, thiết lập đội ngũ nhân sự, phân công đầu việc, theo dõi biểu đồ tiến độ dự án, trực tiếp phê duyệt kết quả thực hiện hoặc trả lại yêu cầu sửa đổi cho thành viên.
+* **Member (Thành viên nhóm):** Người tham gia thực hiện các nhiệm vụ được giao, cập nhật tiến trình làm việc cục bộ, gửi kết quả công việc lên để chờ phê duyệt, nhận thông báo đẩy và sắp xếp lịch công việc cá nhân.
+* **Hệ thống đồng bộ (Offline Sync Engine):** Tác nhân chạy nền (background system agent) chịu trách nhiệm theo dõi trạng thái mạng (`ConnectivityService`), thực hiện ghi đè thông minh và đẩy các dữ liệu cục bộ chờ đồng bộ (`isSynced = 0`) lên Firestore khi có kết nối Internet trở lại.
 
-### 2. Các đối tượng chính trong hệ thống (Entities)
+### 2. Phân tích Yêu cầu Chức năng (Functional Requirements)
+Yêu cầu chức năng được thiết kế chuyên biệt và tối ưu hóa tối đa cho từng nhóm đối tượng cụ thể:
+* **Đối với vai trò Manager (Quản lý):**
+  - Thực hiện đăng ký, đăng nhập và duy trì phiên hoạt động bảo mật thông qua Firebase Authentication.
+  - Khởi tạo dự án mới (CRUD), điền thông tin mô tả chi tiết và gán danh sách thành viên tham gia (`memberIds`).
+  - Quản lý danh sách thành viên dự án, bổ sung hoặc loại bỏ nhân sự linh hoạt.
+  - Tạo nhiệm vụ mới (CRUD), phân phối công việc cho một thành viên cụ thể và thiết lập deadline.
+  - Giám sát tiến độ toàn cục thông qua Dashboard (biểu đồ tròn thể hiện tỉ lệ phần trăm task).
+  - Phê duyệt hoàn thành (`done`) hoặc từ chối duyệt (`rejected`) kèm theo lý do cụ thể để thành viên chỉnh sửa.
+  - Tìm kiếm dự án và lọc nhanh danh sách nhiệm vụ của các thành viên.
+* **Đối với vai trò Member (Thành viên):**
+  - Đăng nhập hệ thống, xem tổng quan các dự án đang tham gia và lọc các nhiệm vụ được giao cho riêng mình.
+  - Quản lý luồng trạng thái công việc (Workflow) tuân thủ nghiêm ngặt máy trạng thái: `todo → doing → reviewing → done`.
+  - Nhận phản hồi từ chối từ Manager và thực hiện sửa đổi đầu việc để gửi duyệt lại.
+  - Sử dụng Calendar Tab để quét nhanh hạn chót (deadline) của các task trong tháng, hỗ trợ sắp xếp công việc ưu tiên hàng ngày.
+  - Chỉnh sửa hồ sơ cá nhân (tên hiển thị, avatar đại diện) và thay đổi mật khẩu trực tiếp (hỗ trợ lưu băm offline).
+* **Đối với Hệ thống Dữ liệu và Đồng bộ:**
+  - Tổ chức và lưu trữ dữ liệu cục bộ an toàn trong SQLite để hỗ trợ chiến lược Offline-First.
+  - Thiết lập luồng trao đổi dữ liệu an toàn, tuân thủ nghiêm ngặt mô hình: `UI → Provider → Repository → SQLite / Firestore`.
+  - Tự động phát hiện trạng thái mạng và kích hoạt tiến trình đẩy dữ liệu đồng bộ ngược (Upstream Sync) cho các bản ghi có trạng thái `isSynced = 0`.
+  - Nhận diện sự kiện thay đổi dữ liệu thời gian thực (Real-time stream) từ Firestore để hiển thị thông báo tức thời tới thiết bị của người dùng liên quan.
+
+### 3. Yêu cầu Phi chức năng (Non-functional Requirements)
+* **Hiệu năng & Tối ưu hóa:** Giao diện Flutter đảm bảo mượt mà (60fps), dữ liệu được quản lý qua Provider để hạn chế tối đa việc Rebuild widget không cần thiết.
+* **Ngoại tuyến trước (Offline-First):** Ứng dụng ưu tiên lưu trữ và xử lý toàn bộ thao tác người dùng dưới SQLite cục bộ trước khi đồng bộ lên Cloud Firestore để đảm bảo trải nghiệm không bị đứt gãy khi mất kết nối mạng.
+* **Bảo mật & Phân quyền:** Phân quyền giao diện và chức năng nghiêm ngặt theo vai trò (`manager` / `member`). Phía Cloud Firestore thiết lập Security Rules để ngăn chặn các truy cập ghi dữ liệu trái phép từ Client.
+* **Dễ bảo trì & Mở rộng:** Cấu trúc dự án phân lớp rõ ràng (Clean Architecture), tách biệt hoàn toàn giữa giao diện hiển thị, logic điều khiển trạng thái (Providers), quản lý dữ liệu (Repositories) và các dịch vụ nền (Services).
+
+### 4. Các đối tượng chính trong hệ thống (Entities)
 * **`UserModel`:** Đại diện cho tài khoản. Gồm có: ID (UID từ Auth), Họ tên, Email, Vai trò (`manager`/`member`), và chữ cái đại diện Avatar.
 * **`ProjectModel`:** Đại diện cho dự án. Gồm có: ID, Tên dự án, Mô tả dự án, Danh sách ID thành viên (`memberIds`), thời điểm cập nhật, và các thông số thống kê phục vụ UI (số task todo/doing/done, phần trăm tiến độ).
 * **`Task`:** Đại diện cho một đầu việc. Gồm có: ID, Tiêu đề, Mô tả, ID dự án liên kết, ID người thực hiện (`assignedTo`), Trạng thái (`status`), Hạn chót (`deadline`), Dữ liệu snapshot của người được gán (tên/avatar), cờ khẩn cấp, lý do từ chối, cờ trạng thái đồng bộ (`isSynced`), và thời điểm cập nhật gần nhất.
 * **`NotificationModel`:** Đại diện cho thông báo. Gồm có: ID, ID người nhận, ID task liên quan, Tiêu đề, Nội dung, Thời gian tạo, Cờ đã đọc (`isRead`), và phân loại thông báo.
 
-### 3. Mối quan hệ giữa các đối tượng (Relationships)
-* **Dự án - Nhiệm vụ (Project - Task):** Quan hệ **Một - Nhiều** (`1-N`). Một dự án chứa nhiều nhiệm vụ. Mối liên kết khóa ngoại vật lý trong SQLite hỗ trợ `ON DELETE CASCADE` (xóa dự án tự động xóa sạch các task bên trong).
-* **Người dùng - Nhiệm vụ (User - Task):** Quan hệ **Một - Nhiều** (`1-N`). Một người dùng có thể được giao thực hiện nhiều nhiệm vụ khác nhau qua trường `assignedTo`.
-* **Người dùng - Dự án (User - Project):** Quan hệ **Nhiều - Nhiều** (`N-N`). Một thành viên tham gia nhiều dự án, và một dự án có nhiều thành viên. Mối quan hệ này được chuẩn hóa logic thông qua mảng `memberIds` lưu trữ ngay trong tài liệu dự án để tối ưu hóa truy vấn offline.
-* **Nhiệm vụ - Thông báo (Task - Notification):** Quan hệ **Một - Nhiều** (`1-N`). Một sự thay đổi trạng thái của nhiệm vụ sẽ sinh ra các thông báo tương ứng cho người dùng liên quan.
+### 5. Mối quan hệ giữa các đối tượng (Relationships)
+* **Dự án - Nhiệm vụ (Project - Task) [1 - N]:** Một dự án chứa nhiều nhiệm vụ. Mối liên kết khóa ngoại vật lý trong SQLite hỗ trợ `ON DELETE CASCADE` (xóa dự án tự động xóa sạch các task bên trong).
+* **Người dùng - Nhiệm vụ (User - Task) [1 - N]:** Một người dùng có thể được giao thực hiện nhiều nhiệm vụ khác nhau qua trường `assignedTo`. Task lưu thêm snapshot thông tin người thực hiện để hiển thị nhanh chóng không cần join bảng.
+* **Người dùng - Dự án (User - Project) [N - N]:** Một thành viên tham gia nhiều dự án, và một dự án có nhiều thành viên. Mối quan hệ này được chuẩn hóa logic thông qua mảng `memberIds` lưu trữ ngay trong tài liệu dự án để tối ưu hóa truy vấn offline.
+* **Nhiệm vụ - Thông báo (Task - Notification) [1 - N]:** Một sự thay đổi trạng thái của nhiệm vụ sẽ sinh ra các thông báo tương ứng cho người dùng liên quan.
 
-### 4. Kiến trúc Tổng quan & Phương thức hoạt động (Offline-First)
+### 6. Kiến trúc Tổng quan & Phương thức hoạt động (Offline-First)
 
 Ứng dụng TaskFlow hoạt động theo mô hình **Offline-First**. Giao diện người dùng tương tác trực tiếp với các State Provider, dữ liệu được ghi đè và lưu trữ cục bộ vào SQLite trước. Khi có kết nối mạng, dữ liệu sẽ được đồng bộ hai chiều (Bi-directional Synchronization) với Cloud Firestore thông qua Repository Pattern.
 
@@ -73,7 +140,7 @@ graph TD
 ```
 > **Lưu ý về dòng chảy dữ liệu (Data Flow):** Firebase Auth không trực tiếp đồng bộ dữ liệu với Firestore. Thay vào đó, Repository lấy định danh tài khoản (`currentUser.uid`) từ Firebase Auth, sau đó dùng UID này làm chìa khóa để thực hiện các truy vấn đọc/ghi trên Firestore và SQLite.
 
-#### 4.1. Sơ đồ thực thể quan hệ cục bộ (ERD - SQLite Local)
+#### 6.1. Sơ đồ thực thể quan hệ cục bộ (ERD - SQLite Local)
 
 Dưới đây là sơ đồ thực thể quan hệ (ERD) thể hiện cấu trúc các bảng và mối liên kết khóa ngoại/logic trong SQLite nội bộ:
 
@@ -133,16 +200,16 @@ erDiagram
     users_local ||--o{ projects_local : "memberIds (Logical Relation)"
 ```
 
-#### 4.2. Luồng Vận Động Dữ Liệu & Đồng Bộ Offline-First
+#### 6.2. Luồng Vận Động Dữ Liệu & Đồng Bộ Offline-First
 
-##### 4.2.1. Đồng bộ xuôi (Downstream - Firestore to SQLite)
+##### 6.2.1. Đồng bộ xuôi (Downstream - Firestore to SQLite)
 1. Khi người dùng mở các màn hình liên quan, Repository tải dữ liệu `tasks` và `projects` từ Firestore theo quyền truy cập hiện tại rồi lưu về SQLite. Riêng `NotificationProvider` lắng nghe realtime stream của collection `tasks` để phát hiện sự kiện tạo thông báo.
 2. Khi nhận dữ liệu từ Firestore, Repository kiểm tra thời điểm cập nhật `updatedAt` và cờ trạng thái `isSynced` của bản ghi local trước khi ghi đè để bảo vệ các thay đổi ngoại tuyến chưa kịp đồng bộ:
    - **Quy tắc bảo vệ**: Nếu bản ghi local đang có `isSynced = 0` (chờ đồng bộ) và có thời gian `updatedAt` mới hơn dữ liệu nhận từ máy chủ, Repository sẽ **giữ lại bản ghi local** và bỏ qua việc ghi đè từ server.
    - Ngược lại, dữ liệu từ server sẽ được lưu đè vào SQLite và cập nhật `isSynced = 1`.
 3. Đối với thông báo, snapshot đầu tiên chỉ được dùng để tạo baseline `previousTasks`, không tạo thông báo cho dữ liệu cũ. Từ các snapshot tiếp theo, hệ thống kiểm tra thay đổi trạng thái/gán việc hợp lệ và chống trùng dựa trên bộ ba `(userId, relatedTaskId, type)` trước khi ghi thông báo mới vào `notifications_local`.
 
-##### 4.2.2. Đồng bộ ngược (Upstream - SQLite to Firestore)
+##### 6.2.2. Đồng bộ ngược (Upstream - SQLite to Firestore)
 1. Khi không có mạng (Offline), người dùng có thể tạo/cập nhật dự án hoặc tạo/cập nhật trạng thái nhiệm vụ trong phạm vi chức năng được ứng dụng hỗ trợ.
 2. Hệ thống ghi dữ liệu vào SQLite, gán thời gian `updatedAt = DateTime.now()` và đánh dấu cờ trạng thái đồng bộ `isSynced = 0`.
 3. Khi thiết bị khôi phục kết nối Internet:
@@ -150,7 +217,7 @@ erDiagram
    - Tìm kiếm các bản ghi chưa đồng bộ (`isSynced = 0`) trong `projects_local` và `tasks_local`.
    - Đẩy dữ liệu lên Firestore. Sau khi lưu thành công, cập nhật `isSynced = 1` ở local và gán thời gian `syncedAt`.
 
-##### 4.2.3. Giải quyết xung đột (Conflict Resolution)
+##### 6.2.3. Giải quyết xung đột (Conflict Resolution)
 Nếu dữ liệu được sửa đổi ở cả local và server trong thời gian offline, hệ thống giải quyết bằng cơ chế **Timestamp Comparison**:
 - So sánh thuộc tính thời gian cập nhật gần nhất `updatedAt` giữa Server Task/Project và Local Task/Project.
 - Nếu `server.updatedAt` lớn hơn `local.updatedAt` $\to$ Cập nhật dữ liệu từ Server ghi đè vào Local.
