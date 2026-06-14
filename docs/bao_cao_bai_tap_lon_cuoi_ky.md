@@ -121,84 +121,31 @@ Yêu cầu chức năng được thiết kế chuyên biệt và tối ưu hóa 
 * **`NotificationModel`:** Đại diện cho thông báo. Gồm có: ID, ID người nhận, ID task liên quan, Tiêu đề, Nội dung, Thời gian tạo, Cờ đã đọc (`isRead`), và phân loại thông báo.
 
 ### 5. Mối quan hệ giữa các đối tượng (Relationships)
-* **Dự án - Nhiệm vụ (Project - Task) [1 - N]:** Một dự án chứa nhiều nhiệm vụ. Mối liên kết khóa ngoại vật lý trong SQLite hỗ trợ `ON DELETE CASCADE` (xóa dự án tự động xóa sạch các task bên trong).
-* **Người dùng - Nhiệm vụ (User - Task) [1 - N]:** Một người dùng có thể được giao thực hiện nhiều nhiệm vụ khác nhau qua trường `assignedTo`. Task lưu thêm snapshot thông tin người thực hiện để hiển thị nhanh chóng không cần join bảng.
-* **Người dùng - Dự án (User - Project) [N - N]:** Một thành viên tham gia nhiều dự án, và một dự án có nhiều thành viên. Mối quan hệ này được chuẩn hóa logic thông qua mảng `memberIds` lưu trữ ngay trong tài liệu dự án để tối ưu hóa truy vấn offline.
-* **Nhiệm vụ - Thông báo (Task - Notification) [1 - N]:** Một sự thay đổi trạng thái của nhiệm vụ sẽ sinh ra các thông báo tương ứng cho người dùng liên quan.
+
+Các đối tượng trong hệ thống có quan hệ chặt chẽ với nhau để phục vụ quá trình quản lý dự án, giao việc, theo dõi trạng thái và phát sinh thông báo. Bảng dưới đây trình bày các mối quan hệ chính trong mô hình dữ liệu của TaskFlow:
+
+| Mối quan hệ | Kiểu quan hệ | Mô tả |
+| :--- | :--- | :--- |
+| Dự án - Nhiệm vụ | 1 - N | Một dự án chứa nhiều nhiệm vụ. Trong SQLite, liên kết `projectId` hỗ trợ `ON DELETE CASCADE` để xóa các nhiệm vụ thuộc dự án khi dự án bị xóa. |
+| Người dùng - Nhiệm vụ | 1 - N | Một người dùng có thể được giao nhiều nhiệm vụ thông qua trường `assignedTo`. Task lưu thêm snapshot tên/avatar để hiển thị nhanh trên giao diện. |
+| Người dùng - Dự án | N - N | Một người dùng có thể tham gia nhiều dự án và một dự án có nhiều thành viên. Quan hệ này được lưu logic bằng mảng `memberIds`. |
+| Nhiệm vụ - Thông báo | 1 - N | Khi trạng thái nhiệm vụ thay đổi, hệ thống sinh ra thông báo tương ứng cho người dùng liên quan. |
 
 ### 6. Kiến trúc Tổng quan & Phương thức hoạt động (Offline-First)
 
-Ứng dụng TaskFlow hoạt động theo mô hình **Offline-First**. Giao diện người dùng tương tác trực tiếp với các State Provider, dữ liệu được ghi đè và lưu trữ cục bộ vào SQLite trước. Khi có kết nối mạng, dữ liệu sẽ được đồng bộ hai chiều (Bi-directional Synchronization) với Cloud Firestore thông qua Repository Pattern.
+Ứng dụng **TaskFlow** được xây dựng theo kiến trúc phân tầng kết hợp với mô hình **Offline-First**. Giao diện Flutter không truy cập trực tiếp vào cơ sở dữ liệu mà thông qua tầng Provider và Repository/Service. Cách tổ chức này giúp tách biệt giao diện, logic nghiệp vụ và dữ liệu, đồng thời hỗ trợ ứng dụng tiếp tục hoạt động khi thiết bị mất kết nối mạng.
 
-```mermaid
-graph TD
-    UI[Giao diện UI] <--> Provider[State Providers]
-    Provider <--> Repo[Repositories]
-    Repo <--> SQLite[(SQLite Local DB)]
-    Firebase_Auth[Firebase Auth] --> Repo
-    Repo <--> Firestore[Cloud Firestore]
-```
-> **Lưu ý về dòng chảy dữ liệu (Data Flow):** Firebase Auth không trực tiếp đồng bộ dữ liệu với Firestore. Thay vào đó, Repository lấy định danh tài khoản (`currentUser.uid`) từ Firebase Auth, sau đó dùng UID này làm chìa khóa để thực hiện các truy vấn đọc/ghi trên Firestore và SQLite.
+![Kiến trúc hệ thống tổng quan của TaskFlow](architecture_overview_taskflow.png)
+
+Repository/Service là tầng trung gian chịu trách nhiệm điều phối dữ liệu giữa hai nguồn lưu trữ. Khi có kết nối mạng, dữ liệu được đồng bộ với Cloud Firestore để bảo đảm khả năng chia sẻ và cập nhật giữa các thiết bị. Khi không có mạng, dữ liệu được lưu vào SQLite Local Storage, sau đó được đồng bộ lại lên Firestore khi kết nối được khôi phục.
+
+> **Lưu ý:** Firebase Auth được sử dụng để xác thực và lấy `uid` của người dùng. UID này là khóa định danh quan trọng để truy vấn dữ liệu người dùng, dự án và nhiệm vụ trong Firestore cũng như SQLite.
 
 #### 6.1. Sơ đồ thực thể quan hệ cục bộ (ERD - SQLite Local)
 
 Dưới đây là sơ đồ thực thể quan hệ (ERD) thể hiện cấu trúc các bảng và mối liên kết khóa ngoại/logic trong SQLite nội bộ:
 
-```mermaid
-erDiagram
-    users_local {
-        TEXT id PK
-        TEXT name
-        TEXT email
-        TEXT role
-        TEXT offlineAuthHash
-        TEXT avatarChar
-    }
-
-    projects_local {
-        TEXT id PK
-        TEXT name
-        TEXT description
-        TEXT memberIds "Danh sách UID cách nhau bởi dấu phẩy"
-        TEXT syncedAt
-        INTEGER isSynced
-        TEXT updatedAt
-    }
-
-    tasks_local {
-        TEXT id PK
-        TEXT title
-        TEXT description
-        TEXT projectId FK "projects_local(id) ON DELETE CASCADE"
-        TEXT assignedTo "UID (Khóa logic)"
-        TEXT status
-        TEXT deadline
-        TEXT assigneeName
-        TEXT assigneeAvatar
-        INTEGER isUrgent
-        TEXT updatedAt
-        TEXT syncedAt
-        INTEGER isSynced
-        TEXT rejectionReason
-    }
-
-    notifications_local {
-        TEXT id PK
-        TEXT userId "UID (Khóa logic)"
-        TEXT relatedTaskId "tasks_local(id) (Khóa logic)"
-        TEXT title
-        TEXT message
-        TEXT createdAt
-        INTEGER isRead
-        TEXT type
-    }
-
-    users_local ||--o{ tasks_local : "assignedTo"
-    projects_local ||--o{ tasks_local : "projectId (Cascade)"
-    tasks_local ||--o{ notifications_local : "relatedTaskId"
-    users_local ||--o{ notifications_local : "userId"
-    users_local ||--o{ projects_local : "memberIds (Logical Relation)"
-```
+![Sơ đồ ERD SQLite Local](erd_sqlite_local.png)
 
 #### 6.2. Luồng Vận Động Dữ Liệu & Đồng Bộ Offline-First
 
@@ -225,56 +172,42 @@ Nếu dữ liệu được sửa đổi ở cả local và server trong thời g
 
 ---
 
-## CÂU 3: SƠ ĐỒ CẤU TRÚC LỚP VÀ SƠ ĐỒ THUẬT TOÁN (DIAGRAMS)
+## CÂU 3: SƠ ĐỒ CẤU TRÚC LỚP VÀ SƠ ĐỒ THUẬT TOÁN
 
-### 1. Class Diagram (Sơ đồ cấu trúc lớp)
+Nội dung Câu 3 trình bày hệ thống sơ đồ thiết kế của dự án **TaskFlow**. Mục tiêu của phần này là làm rõ cách nhóm tổ chức cấu trúc mã nguồn, phân chia trách nhiệm giữa các tầng xử lý và mô tả luồng hoạt động của các chức năng chính trong ứng dụng. Thay vì chỉ liệt kê mã nguồn, các sơ đồ được sử dụng để thể hiện trực quan mối quan hệ giữa các lớp, các thành phần xử lý dữ liệu và các bước nghiệp vụ mà người dùng thực hiện trong hệ thống.
 
-#### 1.1 Data Models (Mô hình dữ liệu)
+Các sơ đồ trong phần này được sắp xếp theo thứ tự từ cấu trúc tĩnh đến luồng xử lý động. Trước hết, báo cáo trình bày sơ đồ cấu trúc lớp để mô tả các thành phần chính trong kiến trúc. Tiếp theo, báo cáo tổng hợp vai trò của từng nhóm sơ đồ. Cuối cùng, các sơ đồ hoạt động, sơ đồ tuần tự và sơ đồ trạng thái được trình bày để minh họa chi tiết cách hệ thống vận hành trong các trường hợp nghiệp vụ quan trọng.
+
+### 3.1. Sơ đồ cấu trúc lớp (Class Diagram)
+
+Để thể hiện cấu trúc tĩnh, nguyên lý đóng gói dữ liệu và các mối quan hệ thành phần của hệ thống TaskFlow, cấu trúc lớp được thiết kế và tích hợp trong một sơ đồ lớp tổng thể duy nhất. Sơ đồ này biểu diễn đầy đủ cấu trúc các thực thể dữ liệu (Models), các lớp nghiệp vụ và dịch vụ (Repositories & Services), và các lớp quản lý trạng thái (Providers):
+
 ```mermaid
 classDiagram
+    %% Tầng Models (Thực thể dữ liệu)
     class UserModel {
         +String id
         +String name
         +String email
-        +String password
         +String role
-        +String avatarChar
-        +UserModel.fromMap(Map data, String id)
-        +Map toMap()
         +bool isManager
     }
 
     class ProjectModel {
         +String id
         +String name
-        +String description
-        +List<String> memberIds
+        +List~String~ memberIds
         +DateTime updatedAt
-        +ProjectModel.fromMap(Map data, String id)
-        +Map toMap()
-        +void addMember(String userId)
     }
 
     class Task {
         +String id
         +String title
-        +String description
         +String projectId
         +String assignedTo
         +String status
         +DateTime deadline
-        +String assigneeName
-        +String assigneeAvatar
-        +bool isUrgent
-        +DateTime updatedAt
-        +String rejectionReason
         +int isSynced
-        +static const List<String> validStatuses
-        +static final Map<String, Set<String>> allowedTransitions
-        +Task.fromMap(Map data, String id)
-        +Map toMap()
-        +Task copyWith(...)
-        +bool isOverdue()
     }
 
     class NotificationModel {
@@ -282,177 +215,123 @@ classDiagram
         +String userId
         +String relatedTaskId
         +String title
-        +String message
-        +DateTime createdAt
         +bool isRead
-        +String type
-        +NotificationModel.fromMap(Map data)
-        +Map toMap()
     }
 
-    ProjectModel "1" -- "*" Task : contains
-    UserModel "1" -- "*" Task : assignedTo
-    ProjectModel "1" -- "*" UserModel : memberIds (N-N Logical)
-    Task "1" -- "*" NotificationModel : relatedTaskId
-    UserModel "1" -- "*" NotificationModel : userId
-
-    style UserModel fill:#eef2ff,stroke:#4f46e5,stroke-width:2px
-    style ProjectModel fill:#eef2ff,stroke:#4f46e5,stroke-width:2px
-    style Task fill:#eef2ff,stroke:#4f46e5,stroke-width:2px
-    style NotificationModel fill:#eef2ff,stroke:#4f46e5,stroke-width:2px
-```
-
-#### 1.2 Services & Repositories Layers (Tầng dịch vụ và Kho lưu trữ)
-```mermaid
-classDiagram
-    class SQLiteService {
-        -_db Database
-        +Future<Database> db
-        +Future<void> cacheTask(Task task, bool isSynced)
-        +Future<List<Task>> getLocalTasks(String userId)
-        +Future<List<Task>> getLocalTasksByProject(String projectId)
-        +Future<List<Task>> getAllLocalTasks()
-        +Future<Task?> getLocalTaskById(String taskId)
-        +Future<List<Task>> getUnsyncedTasks()
-        +Future<void> markTaskSynced(String taskId)
-        +Future<void> deleteTask(String taskId)
-        +Future<void> cacheProject(ProjectModel project, bool isSynced)
-        +Future<List<ProjectModel>> getLocalProjects()
-        +Future<void> deleteProject(String projectId)
-        +Future<List<ProjectModel>> getUnsyncedProjects()
-        +Future<void> markProjectSynced(String projectId)
-        +Future<void> cacheUser(UserModel user)
-        +Future<List<UserModel>> getLocalUsers()
-        +Future<void> cacheNotification(NotificationModel notification)
-        +Future<bool> hasNotificationForTaskType(...)
-        +Future<List<NotificationModel>> getLocalNotifications(String userId)
-        +Future<void> markNotificationRead(String id)
-        +Future<void> markAllNotificationsRead(String userId)
-        +Future<void> deleteNotificationsByTaskId(String taskId)
-        +Future<void> updateUserName(String userId, String newName)
-        +Future<void> updateUserPassword(...)
-        +Future<void> clearAllLocalData()
+    %% Tầng Providers (Quản lý trạng thái)
+    class AuthProvider {
+        +UserModel? currentUser
+        +bool isOfflineMode
+        +login(email, password)
+        +logout()
     }
 
-    class FirebaseService {
-        +Future<List<UserModel>> getUsers()
-        +Future<UserModel?> getUserById(String id)
-        +Future<void> saveUser(UserModel user)
-        +Future<List<ProjectModel>> getProjects()
-        +Future<void> saveProject(ProjectModel project)
-        +Future<List<Task>> getTasksByProject(String projectId)
-        +Future<List<Task>> getTasksByUser(String userId)
-        +Future<List<Task>> getAllTasks()
-        +Future<Task?> getTaskById(String taskId)
-        +Future<void> saveTask(Task task)
-        +Future<void> updateTaskStatus(String taskId, String status)
-        +Future<void> deleteTask(String taskId)
-        +Future<void> deleteProject(String projectId)
-        +Future<List<ProjectModel>> getProjectsByUser(String userId)
+    class ProjectProvider {
+        +List~ProjectModel~ projects
+        +loadProjects(currentUser)
+        +createProject(name, desc, memberIds)
     }
 
-    class AuthService {
-        -_sqliteService SQLiteService
-        +Future<UserModel?> login(String email, String password)
-        +Future<UserModel> register(...)
-        +Future<void> logout()
-        +Future<UserModel?> getCurrentUser()
-        +Future<bool> updateName(String userId, String newName)
-        +Future<bool_message> changePassword(...)
+    class TaskProvider {
+        +List~Task~ tasks
+        +loadTasksByProject(projectId)
+        +updateTaskStatus(taskId, status)
+        +syncPending()
     }
 
-    class ConnectivityService {
-        +ConnectivityService instance$
-        -_isOnline bool
-        +bool isOnline
-        +Stream<bool> onConnectivityChanged
-        +Future<void> init()
-        +void dispose()
+    class NotificationProvider {
+        +List~NotificationModel~ notifications
+        +loadNotifications(userId)
     }
 
-    class TaskRepository {
-        <<abstract>>
-        +Future<List<Task>> getTasks(String projectId)*
-        +Future<void> addTask(Task task)*
-        +Future<void> updateTask(Task task)*
-        +Future<void> deleteTask(String id)*
-        +Future<Map<String, int>> getStatistics(String projectId)*
-        +Future<List<Task>> getUnsyncedTasks()*
-        +Future<void> syncPendingTasks()*
-    }
-
-    class LocalTaskRepository {
-        -SQLiteService _sqliteService
-        -FirebaseService _firebaseService
-        +Future<List<Task>> getTasks(String projectId)
-        +Future<void> addTask(Task task)
-        +Future<void> updateTask(Task task)
-        +Future<void> deleteTask(String id)
-        +Future<Map<String, int>> getStatistics(String projectId)
-        +Future<List<Task>> getUnsyncedTasks()
-        +Future<void> syncPendingTasks()
-    }
-
+    %% Tầng Repositories (Nghiệp vụ dữ liệu)
     class UserRepository {
-        <<abstract>>
-        +Future<List<UserModel>> getUsers()*
-        +Future<UserModel?> getUserById(String id)*
-        +Future<void> saveUser(UserModel user)*
-    }
-
-    class LocalUserRepository {
-        -SQLiteService _sqliteService
-        -FirebaseService _firebaseService
-        +Future<List<UserModel>> getUsers()
-        +Future<UserModel?> getUserById(String id)
-        +Future<void> saveUser(UserModel user)
+        +getUsers()
+        +saveUser(User)
     }
 
     class ProjectRepository {
-        <<abstract>>
-        +Future<List<ProjectModel>> getProjects()*
-        +Future<void> saveProject(ProjectModel project)*
-        +Future<void> deleteProject(String id)*
-        +Future<List<ProjectModel>> getUnsyncedProjects()*
-        +Future<void> syncPendingProjects()*
+        +getProjects()
+        +saveProject(Project)
+        +syncPendingProjects()
     }
 
-    class LocalProjectRepository {
-        -SQLiteService _sqliteService
-        -FirebaseService _firebaseService
-        +Future<List<ProjectModel>> getProjects()
-        +Future<void> saveProject(ProjectModel project)
-        +Future<void> deleteProject(String id)
-        +Future<List<ProjectModel>> getUnsyncedProjects()
-        +Future<void> syncPendingProjects()
+    class TaskRepository {
+        +getTasks(projectId)
+        +addTask(Task)
+        +updateTask(Task)
+        +syncPendingTasks()
     }
 
-    TaskRepository <|.. LocalTaskRepository : implements
-    UserRepository <|.. LocalUserRepository : implements
-    ProjectRepository <|.. LocalProjectRepository : implements
+    %% Tầng Storage (Lưu trữ)
+    class SQLiteLocal {
+        <<database>>
+    }
 
-    LocalTaskRepository --> SQLiteService : uses
-    LocalTaskRepository --> FirebaseService : uses
-    LocalUserRepository --> SQLiteService : uses
-    LocalUserRepository --> FirebaseService : uses
-    LocalProjectRepository --> SQLiteService : uses
-    LocalProjectRepository --> FirebaseService : uses
-    AuthService --> SQLiteService : uses
+    class FirestoreCloud {
+        <<database>>
+    }
 
-    style SQLiteService fill:#f0fdf4,stroke:#16a34a
-    style FirebaseService fill:#fffbeb,stroke:#d97706
-    style AuthService fill:#f0fdf4,stroke:#16a34a
-    style ConnectivityService fill:#f0fdf4,stroke:#16a34a
-    style LocalTaskRepository fill:#eef2ff,stroke:#4f46e5
-    style LocalUserRepository fill:#eef2ff,stroke:#4f46e5
-    style LocalProjectRepository fill:#eef2ff,stroke:#4f46e5
+    %% Mối quan hệ giữa các lớp
+    ProjectModel "1" -- "*" Task : contains
+    UserModel "1" -- "*" Task : assignedTo
+    ProjectModel "1" -- "*" UserModel : memberIds
+    Task "1" -- "*" NotificationModel : relatedTaskId
+    UserModel "1" -- "*" NotificationModel : userId
+
+    AuthProvider --> UserRepository : uses
+    ProjectProvider --> ProjectRepository : uses
+    ProjectProvider --> UserRepository : uses
+    TaskProvider --> TaskRepository : uses
+    NotificationProvider --> SQLiteLocal : uses
+
+    UserRepository --> SQLiteLocal : reads/writes
+    UserRepository --> FirestoreCloud : reads/writes
+    ProjectRepository --> SQLiteLocal : reads/writes
+    ProjectRepository --> FirestoreCloud : reads/writes
+    TaskRepository --> SQLiteLocal : reads/writes
+    TaskRepository --> FirestoreCloud : reads/writes
+
+    %% Định dạng màu sắc
+    style UserModel fill:#eef2ff,stroke:#4f46e5,stroke-width:1px
+    style ProjectModel fill:#eef2ff,stroke:#4f46e5,stroke-width:1px
+    style Task fill:#eef2ff,stroke:#4f46e5,stroke-width:1px
+    style NotificationModel fill:#eef2ff,stroke:#4f46e5,stroke-width:1px
+
+    style AuthProvider fill:#f5f3ff,stroke:#7c3aed,stroke-width:1px
+    style ProjectProvider fill:#f5f3ff,stroke:#7c3aed,stroke-width:1px
+    style TaskProvider fill:#f5f3ff,stroke:#7c3aed,stroke-width:1px
+    style NotificationProvider fill:#f5f3ff,stroke:#7c3aed,stroke-width:1px
+
+    style UserRepository fill:#f0fdf4,stroke:#16a34a,stroke-width:1px
+    style ProjectRepository fill:#f0fdf4,stroke:#16a34a,stroke-width:1px
+    style TaskRepository fill:#f0fdf4,stroke:#16a34a,stroke-width:1px
+
+    style SQLiteLocal fill:#fffbeb,stroke:#d97706,stroke-width:1px
+    style FirestoreCloud fill:#fffbeb,stroke:#d97706,stroke-width:1px
 ```
+*Hình 3.1. Sơ đồ cấu trúc lớp tổng thể hệ thống TaskFlow.*
+
+### 3.2. Tổng hợp các sơ đồ thiết kế trong Câu 3
+
+Bảng dưới đây tổng hợp các sơ đồ được sử dụng trong thiết kế hệ thống và mục đích của từng sơ đồ nhằm cung cấp góc nhìn khái quát trước khi đi vào mô tả chi tiết:
+
+| Nhóm sơ đồ | Tên sơ đồ | Mục đích |
+| :--- | :--- | :--- |
+| Class Diagram | Sơ đồ cấu trúc lớp tổng thể | Làm rõ cấu trúc tĩnh và mối liên hệ giữa các Models, Services, Repositories và Providers. |
+| Activity Diagram | Đăng nhập, tạo task, cập nhật tiến độ, chỉnh sửa task, quản lý thành viên | Trực quan hóa luồng xử lý nghiệp vụ theo từng chức năng cốt lõi. |
+| Sequence Diagram | Cập nhật trạng thái, Repository fallback, Auto Sync, kiểm tra ràng buộc | Mô tả trình tự tương tác và truyền thông điệp giữa các tầng UI, Provider, Repository và Service. |
+| State Diagram | Chuyển đổi trạng thái nhiệm vụ | Biểu diễn vòng đời hợp lệ của một Task thông qua máy trạng thái. |
 
 ---
 
-### 2. Sơ đồ thuật toán và Luồng hoạt động (10 Sơ đồ)
+### 3.3. Sơ đồ Hoạt động & Thuật toán (Activity/Sequence Diagrams)
 
-#### Sơ đồ 2.1: Luồng Đăng nhập & Phân quyền ứng dụng (Activity Diagram)
+Sau khi xác định cấu trúc lớp, báo cáo tiếp tục trình bày các sơ đồ mô tả hoạt động của hệ thống. Nhóm sơ đồ này tập trung vào những luồng nghiệp vụ quan trọng nhất của TaskFlow, bao gồm đăng nhập, tạo nhiệm vụ, cập nhật tiến độ, đồng bộ dữ liệu ngoại tuyến và kiểm soát trạng thái nhiệm vụ.
+
+#### 3.3.1. Luồng Đăng nhập & Phân quyền ứng dụng (Activity Diagram)
+
+Sơ đồ này trình bày quá trình khởi động ứng dụng và xác định trạng thái đăng nhập của người dùng. Hệ thống kiểm tra phiên làm việc đã lưu, xác thực tài khoản qua Firebase Auth và điều hướng đến giao diện phù hợp theo vai trò Manager hoặc Member.
 
 ```mermaid
 flowchart TD
@@ -460,7 +339,8 @@ flowchart TD
     B --> C{"Đã đăng nhập?"}
     C -- Chưa --> D["Hiển thị màn hình Login"]
     D --> E["Nhập email & password"]
-    E --> F{"Xác thực Firebase Auth\n(Giới hạn Timeout 15s)"}
+    E --> F{"Xác thực Firebase Auth
+(Giới hạn Timeout 15s)"}
     
     F -- "Timeout / Lỗi mạng ⚠️" --> G_TIMEOUT["Hiển thị lỗi và cố gắng chuyển sang Offline Mode"]
     G_TIMEOUT --> D_LOCAL["Đọc thông tin băm mật khẩu từ local"]
@@ -489,8 +369,11 @@ flowchart TD
     style G_TIMEOUT fill:#fff1f2,stroke:#e11d48
     style G_ROLE fill:#f0fdf4,stroke:#16a34a
 ```
+*Hình 3.3.1. Sơ đồ hoạt động luồng Đăng nhập và Phân quyền.*
 
-#### Sơ đồ 2.2: Luồng Tạo Task và gán việc trong dự án (Activity Diagram)
+#### 3.3.2. Luồng Tạo nhiệm vụ và phân công công việc (Activity Diagram)
+
+Mô tả quy trình Manager tạo mới một nhiệm vụ trong dự án và giao cho một thành viên trong nhóm, đồng thời cập nhật dữ liệu xuống cả SQLite cục bộ và Cloud Firestore:
 
 ```mermaid
 flowchart TD
@@ -502,7 +385,8 @@ flowchart TD
     F --> G{"Tên nhiệm vụ có trống không?"}
     G -- Có --> H["Thông báo lỗi: Tiêu đề không được để trống"]
     H --> D
-    G -- Không --> I["Khởi tạo đối tượng Task mới\n(Trạng thái mặc định: todo)"]
+    G -- Không --> I["Khởi tạo đối tượng Task mới
+(Trạng thái mặc định: todo)"]
     I --> J["Lưu SQLite local (isSynced = 0, updatedAt = now)"]
     J --> K{"Có kết nối mạng?"}
     K -- Có --> L["Đẩy Task lên Cloud Firestore và cập nhật isSynced = 1"]
@@ -511,18 +395,22 @@ flowchart TD
     M --> N
     N --> O(["🔴 Kết thúc"])
 ```
+*Hình 3.3.2. Sơ đồ hoạt động luồng Tạo nhiệm vụ và phân công công việc.*
 
-#### Sơ đồ 2.3: Luồng Cập nhật Tiến độ & Đồng bộ (Activity Diagram)
+#### 3.3.3. Luồng Cập nhật Tiến độ & Đồng bộ (Activity Diagram)
+
+Mô tả quy trình Member nhận việc và thay đổi trạng thái của Task, áp dụng cơ chế cập nhật giao diện lạc quan (Optimistic UI) trước khi đẩy dữ liệu bất đồng bộ lên máy chủ đám mây:
 
 ```mermaid
 flowchart TD
     START(["🟢 Bắt đầu"]) --> MEMBER_SELECT["Member chọn Task được giao đang làm (doing)"]
     MEMBER_SELECT --> CLICK_SUBMIT["Nhấn nút Gửi duyệt (reviewing)"]
-    CLICK_SUBMIT --> UPDATE_LOCAL["Lưu SQLite local: status = 'reviewing'\nisSynced = 0 (Optimistic UI)"]
+    CLICK_SUBMIT --> UPDATE_LOCAL["Lưu SQLite local: status = 'reviewing'
+isSynced = 0 (Optimistic UI)"]
     UPDATE_LOCAL --> OPTIMISTIC_UI["Rebuild màn hình ngay lập tức để người dùng thấy trạng thái mới"]
     
     OPTIMISTIC_UI --> CHECK_NET{"Kết nối Internet?"}
-    CHECK_NET -- Có --> PUSH_CLOUD["Đẩy Task cập nhật lên Firebase Firestore"]
+    CHECK_NET -- Có --> PUSH_CLOUD["Gửi Task cập nhật lên Firebase Firestore"]
     PUSH_CLOUD --> SYNC_OK{"Firebase phản hồi OK?"}
     
     SYNC_OK -- Có --> MARK_SYNCED["Cập nhật SQLite local: isSynced = 1"]
@@ -535,8 +423,11 @@ flowchart TD
     QUEUE_SYNC --> QUEUE_PENDING["Thông báo: Đã lưu ngoại tuyến, sẽ đồng bộ khi có mạng"]
     QUEUE_PENDING --> END_SUCCESS
 ```
+*Hình 3.3.3. Sơ đồ hoạt động luồng Cập nhật Tiến độ & Đồng bộ.*
 
-#### Sơ đồ 2.4: Luồng Chỉnh sửa Task của Manager (Activity Diagram)
+#### 3.3.4. Luồng Chỉnh sửa Task của Manager (Activity Diagram)
+
+Mô tả quy trình Manager sửa đổi thông tin chi tiết của một nhiệm vụ (tiêu đề, mô tả, người được gán, hạn chót):
 
 ```mermaid
 flowchart TD
@@ -545,7 +436,8 @@ flowchart TD
     C --> D["Hiển thị hộp thoại Chỉnh sửa nhiệm vụ"]
     D --> E["Thay đổi: Tiêu đề, Mô tả, Hạn chót, Người gán trong dự án"]
     E --> F["Nhấn Lưu"]
-    F --> G["Lưu dữ liệu thay đổi xuống SQLite cục bộ\n(isSynced = 0, updatedAt = now)"]
+    F --> G["Lưu dữ liệu thay đổi xuống SQLite cục bộ
+(isSynced = 0, updatedAt = now)"]
     G --> H["Cập nhật giao diện chi tiết tức thì (Optimistic UI)"]
     H --> I{"Có Internet?"}
     I -- Có --> J["Gửi dữ liệu cập nhật lên Firestore"]
@@ -554,17 +446,23 @@ flowchart TD
     K --> M(["🔴 Kết thúc"])
     L --> M
 ```
+*Hình 3.3.4. Sơ đồ hoạt động luồng Chỉnh sửa Task của Manager.*
 
-#### Sơ đồ 2.5: Luồng Quản lý thành viên & Chống Task mồ côi (Activity Diagram)
+#### 3.3.5. Luồng Quản lý thành viên & Chống Task mồ côi (Activity Diagram)
+
+Mô tả thuật toán kiểm tra ràng buộc nghiệp vụ phía client, chặn hành động xóa thành viên ra khỏi dự án nếu thành viên đó đang còn các nhiệm vụ chưa hoàn thành dở dang:
 
 ```mermaid
 flowchart TD
     A(["🟢 Bắt đầu"]) --> B["Manager mở Quản lý thành viên dự án"]
     B --> C["Bỏ tích chọn thành viên để xóa khỏi dự án"]
     C --> D["Nhấn Lưu lại"]
-    D --> E{"Thành viên bị loại bỏ\ncó Task dở dang không?\n(todo, doing, reviewing)"}
+    D --> E{"Thành viên bị loại bỏ
+có Task dở dang không?
+(todo, doing, reviewing)"}
     
-    E -- "Có ❌" --> F["Hiển thị AlertDialog cảnh báo\nchi lượng công việc dở dang"]
+    E -- "Có ❌" --> F["Hiển thị AlertDialog cảnh báo
+chi lượng công việc dở dang"]
     F --> G["Chặn thao tác lưu & giữ nguyên dialog"]
     G --> H(["🔴 Kết thúc (Yêu cầu Manager chuyển giao Task trước)"])
     
@@ -573,8 +471,11 @@ flowchart TD
     J --> K["Thông báo thành công & đóng dialog"]
     K --> L(["🟢 Hoàn tất"])
 ```
+*Hình 3.3.5. Sơ đồ hoạt động luồng Quản lý thành viên & Chống Task mồ côi.*
 
-#### Sơ đồ 2.6: Luồng Tương tác cập nhật trạng thái của Task (Sequence Diagram)
+#### 3.3.6. Luồng Tương tác cập nhật trạng thái của Task (Sequence Diagram)
+
+Sơ đồ tuần tự mô tả các bước giao tiếp và truyền thông điệp giữa giao diện, Provider, Repository và thực thể Task để đảm bảo các thay đổi trạng thái tuân thủ đúng máy trạng thái:
 
 ```mermaid
 sequenceDiagram
@@ -602,8 +503,11 @@ sequenceDiagram
         Screen-->>Member: Hiển thị Dialog thông báo lỗi
     end
 ```
+*Hình 3.3.6. Sơ đồ tuần tự luồng Tương tác cập nhật trạng thái của Task.*
 
-#### Sơ đồ 2.7: Luồng Repository Pattern - Offline Fallback & Error Handling (Sequence Diagram)
+#### 3.3.7. Luồng Repository Pattern - Offline Fallback & Error Handling (Sequence Diagram)
+
+Sơ đồ tuần tự mô tả cơ chế xử lý ngoại lệ và tự động chuyển vùng dữ liệu dự phòng từ SQLite cache khi việc kết nối tới Cloud Firestore bị lỗi hoặc quá hạn thời gian chờ (Timeout 15 giây):
 
 ```mermaid
 sequenceDiagram
@@ -637,8 +541,11 @@ sequenceDiagram
         UI-->>User: Hiển thị danh sách kèm nhãn Offline
     end
 ```
+*Hình 3.3.7. Sơ đồ tuần tự luồng Repository Pattern - Offline Fallback & Error Handling.*
 
-#### Sơ đồ 2.8: Luồng Khôi phục kết nối mạng - Auto Sync cả Project & Task (Sequence Diagram)
+#### 3.3.8. Luồng Khôi phục kết nối mạng - Auto Sync cả Project & Task (Sequence Diagram)
+
+Sơ đồ tuần tự mô tả quy trình Connectivity Provider phát hiện trạng thái mạng hoạt động trực tuyến trở lại và tự động kích hoạt quá trình đồng bộ song song (Parallel Synchronization) các bản ghi chưa đồng bộ từ SQLite lên Cloud Firestore:
 
 ```mermaid
 sequenceDiagram
@@ -667,8 +574,11 @@ sequenceDiagram
         TaskProv->>Local: Cập nhật isSynced = 1
     end
 ```
+*Hình 3.3.8. Sơ đồ tuần tự luồng Khôi phục mạng và tự động đồng bộ.*
 
-#### Sơ đồ 2.9: Luồng kiểm tra ràng buộc trước khi xóa thành viên dự án (Sequence Diagram)
+#### 3.3.9. Luồng kiểm tra ràng buộc trước khi xóa thành viên dự án (Sequence Diagram)
+
+Sơ đồ tuần tự chi tiết mô tả quá trình UI và các Provider phối hợp kiểm duyệt công việc dở dang của thành viên trước khi Manager xác nhận loại bỏ người đó ra khỏi dự án:
 
 ```mermaid
 sequenceDiagram
@@ -689,8 +599,11 @@ sequenceDiagram
         UI-->>Manager: Đóng dialog & hiển thị Snackbar thành công
     end
 ```
+*Hình 3.3.9. Sơ đồ tuần tự luồng Kiểm tra ràng buộc trước khi xóa thành viên.*
 
-#### Sơ đồ 2.10: Sơ đồ Chuyển đổi trạng thái nhiệm vụ (State Diagram - State Machine)
+#### 3.3.10. Sơ đồ Chuyển đổi trạng thái nhiệm vụ (State Diagram - State Machine)
+
+Sơ đồ máy trạng thái (State Diagram) biểu diễn các trạng thái hợp lệ của đối tượng Task (`todo`, `doing`, `reviewing`, `done`, `cancelled`, `archived`) và các cung chuyển đổi trạng thái hợp lệ được phép thực hiện trong hệ thống:
 
 ```mermaid
 stateDiagram-v2
@@ -723,122 +636,494 @@ stateDiagram-v2
     style reviewing fill:#dbeafe,stroke:#3b82f6
     style done fill:#dcfce7,stroke:#10b981
 ```
+*Hình 3.3.10. Sơ đồ chuyển đổi trạng thái nhiệm vụ.*
+
+
+## CÂU 4: THIẾT KẾ MÀN HÌNH (WIREFRAME) VÀ LUỒNG CÔNG VIỆC
+
+Phần thiết kế màn hình của **TaskFlow** được xây dựng theo hướng ưu tiên thao tác nhanh trên thiết bị di động. Người dùng có thể đăng nhập, xem tổng quan công việc, quản lý dự án, chuyển trạng thái nhiệm vụ và nhận thông báo trong cùng một luồng điều hướng thống nhất.
+
+### 4.1. Danh sách màn hình chính
+
+| Màn hình | Đối tượng sử dụng | Mục đích |
+| :--- | :--- | :--- |
+| Login / Register | Manager, Member | Đăng nhập, đăng ký tài khoản và xác thực bằng Firebase Auth |
+| HomeScreen | Manager, Member | Hiển thị dashboard tổng quan theo vai trò |
+| ProjectListScreen | Manager, Member | Xem danh sách dự án và tiến độ hoàn thành |
+| ProjectTaskScreen | Manager, Member | Xem nhiệm vụ theo Kanban, danh sách hoặc lịch biểu |
+| TaskDetailScreen | Manager, Member | Xem chi tiết nhiệm vụ và chuyển trạng thái công việc |
+| NotificationScreen | Manager, Member | Theo dõi thông báo thay đổi nhiệm vụ/dự án |
+| ProfileScreen / EditProfileScreen | Manager, Member | Xem và chỉnh sửa thông tin cá nhân |
+| Team/Member Management | Manager | Quản lý thành viên trong dự án |
+
+### 4.2. Wireframe màn hình đăng nhập và đăng ký
+
+Màn hình đăng nhập sử dụng bố cục một cột, đặt logo/tên ứng dụng ở phía trên, form nhập email và mật khẩu ở giữa, nút đăng nhập chính ở cuối form. Từ màn hình này người dùng có thể chuyển sang đăng ký tài khoản mới.
+
+> **[Chèn ảnh Wireframe 4.1 - Login/Register tại đây]**
+
+Luồng xử lý:
+1. Người dùng nhập email và mật khẩu.
+2. Ứng dụng gọi Firebase Authentication để xác thực.
+3. Sau khi đăng nhập thành công, ứng dụng đọc thông tin người dùng trong Firestore.
+4. Dựa vào trường `role`, hệ thống chuyển đến giao diện Manager hoặc Member.
+
+### 4.3. Wireframe màn hình chính theo vai trò
+
+`MainScreen` đóng vai trò là khung điều hướng chính. Ứng dụng sử dụng Floating Bottom Navigation Bar để giữ các chức năng quan trọng luôn nằm trong tầm thao tác của người dùng.
+
+| Vai trò | Tab hiển thị | Chức năng đặc biệt |
+| :--- | :--- | :--- |
+| Manager | Home, Project, Team, Notification, Profile | Có nút tạo nhanh dự án/nhiệm vụ và quyền duyệt nhiệm vụ |
+| Member | Home, Project, Notification, Profile | Chỉ xem nhiệm vụ được giao và cập nhật trạng thái hợp lệ |
+
+> **[Chèn ảnh Wireframe 4.2 - MainScreen Manager/Member tại đây]**
+
+### 4.4. Wireframe Dashboard tổng quan
+
+Dashboard được thiết kế khác nhau theo vai trò:
+
+- **Manager:** xem tổng số dự án, tổng số nhiệm vụ, số nhiệm vụ đang chờ duyệt, tỷ lệ hoàn thành và danh sách công việc cần xử lý.
+- **Member:** xem nhiệm vụ được giao, nhiệm vụ gần hạn, tiến độ cá nhân và thông báo mới.
+
+> **[Chèn ảnh Wireframe 4.3 - Home Dashboard tại đây]**
+
+### 4.5. Wireframe danh sách dự án và chi tiết dự án
+
+Màn hình danh sách dự án hiển thị mỗi dự án dưới dạng một thẻ gồm tên dự án, mô tả ngắn, số lượng thành viên và thanh tiến độ. Khi chọn một dự án, người dùng được chuyển đến màn hình chi tiết nhiệm vụ của dự án.
+
+Trong `ProjectTaskScreen`, hệ thống hỗ trợ ba cách xem:
+
+- **List View:** phù hợp khi cần xem nhanh tất cả nhiệm vụ.
+- **Kanban View:** chia nhiệm vụ theo trạng thái `todo`, `doing`, `reviewing`, `done`.
+- **Calendar View:** hiển thị nhiệm vụ theo ngày hết hạn.
+
+> **[Chèn ảnh Wireframe 4.4 - ProjectListScreen tại đây]**
+
+> **[Chèn ảnh Wireframe 4.5 - ProjectTaskScreen Kanban/Calendar tại đây]**
+
+### 4.6. Wireframe chi tiết nhiệm vụ
+
+Màn hình chi tiết nhiệm vụ hiển thị tên nhiệm vụ, mô tả, người được giao, hạn hoàn thành, trạng thái hiện tại và lịch sử chuyển trạng thái. Các nút hành động được hiển thị theo vai trò:
+
+- Member có thể chuyển `todo -> doing` và `doing -> reviewing`.
+- Manager có thể duyệt `reviewing -> done` hoặc từ chối để đưa nhiệm vụ quay lại trạng thái cần chỉnh sửa.
+
+> **[Chèn ảnh Wireframe 4.6 - TaskDetailScreen tại đây]**
+
+### 4.7. Luồng công việc tổng quát
+
+Luồng hoạt động chính của hệ thống:
+
+| Bước | Tác nhân | Thao tác | Kết quả |
+| :--- | :--- | :--- | :--- |
+| 1 | Manager / Member | Đăng nhập vào ứng dụng | Hệ thống xác thực tài khoản bằng Firebase Auth |
+| 2 | Hệ thống | Đọc thông tin người dùng | Xác định vai trò `manager` hoặc `member` |
+| 3 | Manager / Member | Truy cập Dashboard | Hiển thị thông tin tổng quan theo vai trò |
+| 4 | Manager | Tạo dự án, thêm thành viên, tạo nhiệm vụ | Dữ liệu dự án và nhiệm vụ được ghi vào SQLite/Firestore |
+| 5 | Member | Nhận nhiệm vụ, cập nhật tiến độ, gửi duyệt | Trạng thái nhiệm vụ chuyển theo đúng State Machine |
+| 6 | Manager | Kiểm tra, phê duyệt hoặc từ chối nhiệm vụ | Nhiệm vụ được hoàn thành hoặc trả về để chỉnh sửa |
+| 7 | Hệ thống | Đồng bộ dữ liệu | SQLite đồng bộ với Firebase Firestore khi có mạng |
+
+> **[Chèn sơ đồ luồng công việc tổng quát tại đây]**
 
 ---
 
-## CÂU 4: THIẾT KẾ MÀN HÌNH (SCREENS DESIGN) VÀ LOGIC ĐIỀU HƯỚNG (FLOW OF WORK)
+## CÂU 5: THIẾT KẾ LAYOUT MẪU THEO YÊU CẦU (TIÊU CHÍ 5)
 
-Ứng dụng **TaskFlow** sử dụng thanh điều hướng nổi (**Floating Bottom Navigation Bar**) thiết kế bo tròn dạng viên thuốc, tạo cảm giác hiện đại và tối ưu không gian hiển thị:
+Layout mẫu của **TaskFlow** được triển khai theo phong cách ứng dụng quản lý công việc hiện đại, tập trung vào khả năng đọc nhanh, thao tác ít bước và phù hợp với màn hình điện thoại.
 
-### 1. Danh sách và luồng các màn hình
-1. **Login & Register Screen:** 
-   * *Giao diện:* Sử dụng tông màu Primary `#4F46E5` kết hợp nền xám Slate nhẹ `#F8FAFC`, form nhập bo góc mềm mại `12px`, có nút chuyển đổi hiển thị mật khẩu.
-   * *Logic:* Đăng nhập Firebase Auth trước. Nếu thành công sẽ nạp role của User từ Firestore để chuyển đổi giao diện tương ứng.
-2. **MainScreen (Giao diện khung):**
-   * *Giao diện:* Bottom Navigation Bar nổi bo tròn `30px`, cách đáy màn hình `24px`.
-   * *Phân quyền:* Manager nhìn thấy 4 Tabs (Home, Project, Group, Profile) + nút FAB tròn nổi ở giữa để tạo Task nhanh. Member chỉ nhìn thấy 3 Tabs (Home, Project, Profile) và ẩn hoàn toàn nút FAB.
-3. **HomeScreen (Trang chủ tổng quan):**
-   * *Manager:* Hiển thị lưới thống kê 2x2 (Tổng số task, task đang làm, task hoàn thành, số lượng thành viên). Có khu vực thẻ Hero chứa task cần duyệt gấp nhất kèm nút duyệt/từ chối nhanh.
-   * *Member:* Hiển thị thẻ Hero của công việc khẩn cấp đang làm, biểu đồ tròn tiến độ cá nhân, và danh sách các task mới cần làm.
-4. **ProjectListScreen (Danh sách dự án):**
-   * Hiển thị các dự án dưới dạng Card bo góc `20px` kèm thanh tiến độ `LinearProgressIndicator` của từng dự án.
-   * Manager có nút (+) trên AppBar để mở dialog tạo dự án mới, hỗ trợ nhập tên, mô tả và chọn thành viên tham gia qua các checkbox.
-5. **ProjectTaskScreen (Chi tiết công việc dự án):**
-   * Hỗ trợ hai chế độ xem: **Dạng danh sách (List)** hoặc **Bảng Kanban (Kanban Board)**.
-   * Tích hợp thanh lịch biểu mini hàng tháng (Calendar View) hiển thị số lượng chấm màu tương ứng với số task trong ngày.
-6. **TaskDetailScreen (Chi tiết nhiệm vụ):**
-   * Hiển thị chi tiết nội dung, nhãn trạng thái và thời gian.
-   * Có thanh lịch sử trạng thái dạng trục dọc (Vertical Status Timeline).
-   * Manager có thêm nút Edit (mở dialog sửa tiêu đề, mô tả, deadline, gán lại người thực hiện) và nút Delete để xóa task.
+### 5.1. Nguyên tắc thiết kế layout
+
+| Thành phần | Cách thiết kế |
+| :--- | :--- |
+| Nền ứng dụng | Màu sáng nhẹ, tạo cảm giác sạch và dễ đọc |
+| Thẻ nội dung | Bo góc vừa phải, có khoảng trắng rõ ràng giữa các khối |
+| Nút chính | Dùng màu chủ đạo để nhấn mạnh thao tác quan trọng |
+| Trạng thái nhiệm vụ | Mỗi trạng thái có màu riêng để người dùng nhận biết nhanh |
+| Điều hướng | Floating Bottom Navigation Bar nằm cố định ở đáy màn hình |
+| Danh sách | Sử dụng card/list item ngắn gọn, hỗ trợ cuộn dọc |
+
+### 5.2. Layout màn hình Dashboard
+
+Dashboard sử dụng bố cục theo từng khối thông tin:
+
+| Khu vực | Nội dung hiển thị | Mục đích |
+| :--- | :--- | :--- |
+| Header | Lời chào, tên người dùng, vai trò | Cá nhân hóa trải nghiệm sử dụng |
+| Thống kê nhanh | Tổng nhiệm vụ, nhiệm vụ đang làm, chờ duyệt, hoàn thành | Giúp người dùng nắm tiến độ trong vài giây |
+| Nhiệm vụ ưu tiên | Các task khẩn cấp hoặc gần hạn | Hỗ trợ xử lý công việc quan trọng trước |
+| Thông báo | Cập nhật thay đổi dự án/nhiệm vụ | Nhắc người dùng theo dõi hoạt động mới |
+
+> **[Chèn ảnh Layout mẫu 5.1 - Dashboard tại đây]**
+
+### 5.3. Layout màn hình dự án
+
+Màn hình dự án sử dụng danh sách thẻ dự án. Mỗi thẻ có:
+
+| Thành phần trên thẻ dự án | Ý nghĩa |
+| :--- | :--- |
+| Tên dự án | Giúp người dùng nhận diện dự án |
+| Mô tả ngắn | Tóm tắt mục tiêu hoặc phạm vi dự án |
+| Số thành viên tham gia | Thể hiện quy mô nhóm thực hiện |
+| Thanh tiến độ | Hiển thị phần trăm nhiệm vụ đã hoàn thành |
+| Nút truy cập chi tiết | Mở danh sách nhiệm vụ, Kanban và Calendar của dự án |
+
+> **[Chèn ảnh Layout mẫu 5.2 - Project List tại đây]**
+
+### 5.4. Layout Kanban và Calendar
+
+Kanban Board chia nhiệm vụ thành các cột trạng thái. Cách trình bày này giúp Manager dễ theo dõi tiến độ toàn dự án, đồng thời giúp Member biết nhiệm vụ của mình đang ở bước nào.
+
+Calendar View hiển thị nhiệm vụ theo ngày hết hạn, phù hợp khi người dùng cần theo dõi deadline và sắp xếp thứ tự ưu tiên.
+
+> **[Chèn ảnh Layout mẫu 5.3 - Kanban Board tại đây]**
+
+> **[Chèn ảnh Layout mẫu 5.4 - Calendar View tại đây]**
+
+### 5.5. Liên hệ với mã nguồn
+
+Các màn hình và layout chính được triển khai trong các tệp:
+
+- `lib/screens/main_screen.dart`: khung điều hướng chính.
+- `lib/screens/home_screen.dart`: dashboard tổng quan.
+- `lib/screens/project_list_screen.dart`: danh sách dự án.
+- `lib/screens/project_task_screen.dart`: danh sách nhiệm vụ, Kanban và Calendar.
+- `lib/screens/task_detail_screen.dart`: chi tiết nhiệm vụ và xử lý trạng thái.
+- `lib/screens/profile_screen.dart`: hồ sơ người dùng.
+- `lib/widgets/`: các widget dùng chung như task card, project card, dialog và thành phần giao diện lặp lại.
 
 ---
 
-## CÂU 5: THỰC HIỆN LAYOUT/MÀN HÌNH MẪU (THEO IMG_5518.PNG)
+## CÂU 6: SCREEN THEO LUỒNG CÔNG VIỆC
 
-Màn hình chi tiết công việc dự án và biểu diễn Kanban/Calendar đã được thực hiện bằng Flutter với các thông số cấu trúc trực quan cao cấp:
+Phần này trình bày các màn hình theo luồng công việc thực tế của ứng dụng **TaskFlow**, đồng thời trích dẫn các đoạn code tiêu biểu trong dự án để chứng minh việc hiện thực các User Stories đã nêu ở Câu 1. Các đoạn code được chọn từ tầng Screen, Provider và Repository nhằm thể hiện rõ mối liên kết giữa giao diện, xử lý trạng thái và lưu trữ dữ liệu.
 
-* **Mã màu chủ đạo (HSL Palette):**
-  * Nền ứng dụng: `#F8FAFC` (Slate Light)
-  * Thẻ hiển thị: `#FFFFFF` (Trắng tinh khiết)
-  * Primary: `#4F46E5` (Indigo Modern)
-  * Nhãn trạng thái: `Todo` (Đỏ `#EF4444`), `Doing` (Vàng hổ phách `#F59E0B`), `Reviewing` (Xanh dương `#3B82F6`), `Done` (Xanh lá `#10B981`).
-* **Widget sử dụng cho Calendar Tab:**
-  * Sử dụng một Custom Calendar Widget: Sử dụng `GridView.builder` với 7 cột để vẽ lưới ngày trong tháng.
-  * Các ngày có Task sẽ vẽ các chấm tròn màu (`Container` dạng `BoxShape.circle`) tương ứng với màu trạng thái của Task đó. Ngày hiện tại được bao quanh bởi viền màu Primary của ứng dụng.
-* **Widget sử dụng cho Kanban Tab:**
-  * Sử dụng `SingleChildScrollView` cuộn ngang (`scrollDirection: Axis.horizontal`).
-  * Bên trong chứa các cột trạng thái (`todo`, `doing`, `reviewing`, `done`) được thiết kế dưới dạng thẻ rộng `MediaQuery.of(context).size.width * 0.78` giúp người dùng lướt ngang mượt mà.
-  * Mỗi cột chứa một `ListView.builder` dọc để hiển thị các thẻ Task tương ứng.
-* **Widget cho Trục lịch sử (Timeline) ở chi tiết:**
-  * Được thiết kế dạng danh sách liên kết dọc (`ListView.builder` kết hợp các đường kẻ dọc và icon trạng thái tròn). Thể hiện trực quan thời điểm chuyển dịch trạng thái của Task.
+### 6.1. Luồng đăng nhập và điều hướng theo vai trò
 
----
+| Bước | Màn hình | Mô tả |
+| :--- | :--- | :--- |
+| 1 | LoginScreen | Người dùng nhập email và mật khẩu |
+| 2 | AuthProvider | Xác thực tài khoản qua Firebase Auth |
+| 3 | FirebaseService | Đọc hồ sơ người dùng trong collection `users` |
+| 4 | MainScreen | Hiển thị giao diện tương ứng với vai trò |
 
-## CÂU 6: THỰC HIỆN CODE CÁC CÂU CHUYỆN NGƯỜI DÙNG Ở CÂU 1
+Đoạn code trong `AuthProvider` thể hiện chức năng đăng nhập, quản lý trạng thái tải dữ liệu, xử lý lỗi và xác định chế độ offline/online của người dùng:
 
-Dưới đây là một số lát cắt mã nguồn quan trọng thể hiện việc thực thi các User Stories:
-
-### 1. Lọc và gán việc trong phạm vi thành viên dự án (US-M3)
-Đoạn mã lọc thành viên dự án trong [project_task_screen.dart](file:///d:/Workspace/TBDD/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/lib/screens/project_task_screen.dart):
 ```dart
-// Lọc danh sách thành viên thực tế của dự án
-final List<UserModel> projectMembers = projectProvider.allUsers
-    .where((u) => project.memberIds.contains(u.id))
-    .toList();
+Future<bool> login(String email, String password) async {
+  _isLoading = true;
+  _errorMessage = null;
+  _isOfflineMode = false;
+  notifyListeners();
 
-// Hiển thị Dropdown giao việc cho thành viên thuộc dự án
-DropdownButtonFormField<String>(
-  value: selectedUser,
-  items: projectMembers.map((u) {
-    return DropdownMenuItem<String>(
-      value: u.id,
-      child: Text(u.name),
-    );
-  }).toList(),
-  onChanged: (val) => setState(() => selectedUser = val),
-);
-```
-
-### 2. Thao tác trạng thái của Member và Manager (US-ME3, US-ME4, US-M5)
-Đoạn mã chuyển trạng thái trong [task_detail_screen.dart](file:///d:/Workspace/TBDD/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/lib/screens/task_detail_screen.dart):
-```dart
-Widget _buildActions(BuildContext context, TaskProvider provider, Task currentTask, bool isManager, bool isAssignedToMe) {
-  final status = currentTask.status.toLowerCase();
-
-  // Thành viên tự nhận việc hoặc nộp bài
-  if (!isManager && isAssignedToMe) {
-    if (status == 'todo') {
-      return _buildFullWidthButton('BẮT ĐẦU LÀM', AppColors.doing, () => _updateStatus(context, provider, currentTask, 'doing'));
+  try {
+    _currentUser = await _authRepository.login(email, password);
+    if (_currentUser == null) {
+      _errorMessage = 'Email hoặc mật khẩu không đúng. Vui lòng thử lại.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
     }
-    if (status == 'doing') {
-      return _buildFullWidthButton('GỬI DUYỆT 📤', AppColors.reviewing, () => _updateStatus(context, provider, currentTask, 'reviewing'));
-    }
-  }
 
-  // Quản lý phê duyệt hoặc từ chối
-  if (isManager && status == 'reviewing') {
-    return Row(
-      children: [
-        Expanded(child: _buildFullWidthButton('Từ chối', AppColors.error, () => _showRejectDialog(context, provider, currentTask.id))),
-        const SizedBox(width: 16),
-        Expanded(child: _buildFullWidthButton('DUYỆT', AppColors.done, () => _approveTask(context, provider, currentTask.id))),
-      ],
-    );
+    _isLoading = false;
+    notifyListeners();
+    return true;
+  } catch (e) {
+    _errorMessage = e.toString();
+    _isLoading = false;
+    notifyListeners();
+    return false;
   }
-  return const SizedBox.shrink();
 }
 ```
 
+*Nguồn: `lib/providers/auth_provider.dart`*
+
+> **[Chèn Screen 6.1 - Đăng nhập thành công tại đây]**
+
+### 6.2. Luồng Manager tạo dự án và giao nhiệm vụ
+
+| Bước | Màn hình | Thao tác |
+| :--- | :--- | :--- |
+| 1 | HomeScreen | Manager xem tổng quan hệ thống |
+| 2 | ProjectListScreen | Chọn nút tạo dự án |
+| 3 | Project Dialog | Nhập tên, mô tả và chọn thành viên |
+| 4 | ProjectTaskScreen | Tạo nhiệm vụ mới trong dự án |
+| 5 | Task Dialog | Nhập tiêu đề, mô tả, deadline và người phụ trách |
+| 6 | NotificationProvider | Gửi thông báo cục bộ cho thành viên được giao |
+
+Trong `ProjectProvider`, chức năng tạo dự án được hiện thực bằng cách khởi tạo `ProjectModel`, gọi Repository để lưu dữ liệu và cập nhật lại danh sách dự án trên giao diện:
+
+```dart
+Future<void> createProject(
+  String name,
+  String description,
+  List<String> memberIds,
+) async {
+  final newProject = ProjectModel(
+    id: '',
+    name: name,
+    description: description,
+    memberIds: memberIds,
+  );
+  await _projectRepository.addProject(newProject);
+  _projects.add(newProject);
+  notifyListeners();
+}
+```
+
+*Nguồn: `lib/providers/project_provider.dart`*
+
+Đối với chức năng tạo nhiệm vụ, `TaskProvider` khởi tạo đối tượng `Task` với trạng thái mặc định là `todo`, sau đó gọi Repository để lưu dữ liệu:
+
+```dart
+Future<void> createTask(
+  String title,
+  String description,
+  String projectId,
+  String assignedTo,
+  DateTime deadline,
+  {String assigneeName = '', String assigneeAvatar = '', bool isUrgent = false}
+) async {
+  final newTask = Task(
+    id: '',
+    title: title,
+    description: description,
+    projectId: projectId,
+    assignedTo: assignedTo,
+    status: 'todo',
+    deadline: deadline,
+    assigneeName: assigneeName,
+    assigneeAvatar: assigneeAvatar,
+    isUrgent: isUrgent,
+  );
+  await _taskRepository.addTask(newTask);
+  _tasks.add(newTask);
+  notifyListeners();
+}
+```
+
+*Nguồn: `lib/providers/task_provider.dart`*
+
+> **[Chèn Screen 6.2 - Manager tạo dự án tại đây]**
+
+> **[Chèn Screen 6.3 - Manager tạo nhiệm vụ tại đây]**
+
+### 6.3. Luồng Member nhận việc và gửi duyệt
+
+| Bước | Màn hình | Thao tác |
+| :--- | :--- | :--- |
+| 1 | HomeScreen | Member xem nhiệm vụ được giao |
+| 2 | TaskDetailScreen | Mở chi tiết nhiệm vụ |
+| 3 | TaskDetailScreen | Chọn bắt đầu làm để chuyển `todo -> doing` |
+| 4 | TaskDetailScreen | Chọn gửi duyệt để chuyển `doing -> reviewing` |
+| 5 | ProjectTaskScreen | Nhiệm vụ xuất hiện ở cột đang chờ duyệt |
+
+Tại màn hình chi tiết nhiệm vụ, các nút thao tác được hiển thị theo vai trò và trạng thái hiện tại của nhiệm vụ. Member chỉ được phép bắt đầu làm hoặc gửi duyệt nhiệm vụ được giao cho mình:
+
+```dart
+if (!isManager && isAssignedToMe) {
+  if (status == 'todo') {
+    return _buildFullWidthButton(
+      'BẮT ĐẦU LÀM',
+      AppColors.doing,
+      () => _updateStatus(context, provider, currentTask, 'doing'),
+    );
+  }
+  if (status == 'doing') {
+    return _buildFullWidthButton(
+      'GỬI DUYỆT 📤',
+      AppColors.reviewing,
+      () => _updateStatus(context, provider, currentTask, 'reviewing'),
+    );
+  }
+}
+```
+
+*Nguồn: `lib/screens/task_detail_screen.dart`*
+
+Việc cập nhật trạng thái được xử lý ở `TaskProvider`. Trước khi lưu dữ liệu, hệ thống kiểm tra tính hợp lệ của bước chuyển trạng thái để bảo đảm nhiệm vụ đi đúng quy trình:
+
+```dart
+Future<bool> updateTaskStatus(String taskId, String newStatus) async {
+  final task = await _findMutableTaskById(taskId);
+  if (task != null) {
+    final validationError = Task.validateTransition(task.status, newStatus);
+    if (validationError != null) return false;
+
+    if (await task.updateStatus(newStatus)) {
+      await _taskRepository.updateTask(task);
+      _upsertTask(task);
+      notifyListeners();
+      return true;
+    }
+  }
+  return false;
+}
+```
+
+*Nguồn: `lib/providers/task_provider.dart`*
+
+> **[Chèn Screen 6.4 - Member nhận nhiệm vụ tại đây]**
+
+> **[Chèn Screen 6.5 - Member gửi duyệt nhiệm vụ tại đây]**
+
+### 6.4. Luồng Manager duyệt hoặc từ chối nhiệm vụ
+
+| Bước | Màn hình | Thao tác |
+| :--- | :--- | :--- |
+| 1 | HomeScreen | Manager xem danh sách nhiệm vụ đang chờ duyệt |
+| 2 | TaskDetailScreen | Kiểm tra nội dung nhiệm vụ |
+| 3 | TaskDetailScreen | Chọn duyệt để chuyển `reviewing -> done` |
+| 4 | TaskDetailScreen | Hoặc nhập lý do từ chối để yêu cầu làm lại |
+
+Khi nhiệm vụ ở trạng thái `reviewing`, Manager được hiển thị hai thao tác duyệt hoặc từ chối. Đây là phần hiện thực User Story liên quan đến kiểm tra và phê duyệt kết quả công việc:
+
+```dart
+if (isManager && status == 'reviewing') {
+  return Row(
+    children: [
+      Expanded(
+        child: _buildFullWidthButton(
+          'Từ chối',
+          AppColors.error,
+          () => _showRejectDialog(context, provider, currentTask.id),
+        ),
+      ),
+      const SizedBox(width: 16),
+      Expanded(
+        child: _buildFullWidthButton(
+          'DUYỆT',
+          AppColors.done,
+          () => _approveTask(context, provider, currentTask.id),
+        ),
+      ),
+    ],
+  );
+}
+```
+
+*Nguồn: `lib/screens/task_detail_screen.dart`*
+
+Ở tầng Provider, thao tác duyệt chuyển nhiệm vụ từ `reviewing` sang `done`, còn thao tác từ chối đưa nhiệm vụ về `todo` kèm lý do để thành viên chỉnh sửa:
+
+```dart
+Future<bool> approveTask(String taskId) async {
+  final task = await _findMutableTaskById(taskId);
+  if (task != null) {
+    final validationError = Task.validateTransition(task.status, 'done');
+    if (validationError != null) return false;
+
+    if (await task.updateStatus('done')) {
+      task.rejectionReason = '';
+      await _taskRepository.updateTask(task);
+      _upsertTask(task);
+      notifyListeners();
+      return true;
+    }
+  }
+  return false;
+}
+```
+
+*Nguồn: `lib/providers/task_provider.dart`*
+
+> **[Chèn Screen 6.6 - Manager duyệt nhiệm vụ tại đây]**
+
+### 6.5. Luồng đồng bộ dữ liệu Offline-First
+
+Khi thiết bị mất mạng, người dùng vẫn có thể thao tác với dữ liệu đã lưu trong SQLite. Các bản ghi mới hoặc bản ghi bị chỉnh sửa được đánh dấu `isSynced = 0`. Khi mạng hoạt động trở lại, hệ thống gọi `syncPending()` để đẩy dữ liệu lên Firebase Firestore và cập nhật lại trạng thái đồng bộ.
+
+| Trạng thái | Nơi lưu | Cách xử lý |
+| :--- | :--- | :--- |
+| Có mạng | Firestore + SQLite | Ghi dữ liệu lên cloud và lưu cache cục bộ |
+| Mất mạng | SQLite | Lưu dữ liệu cục bộ, đánh dấu chưa đồng bộ |
+| Có mạng trở lại | Firestore | Đồng bộ các bản ghi `isSynced = 0` |
+
+Trong `TaskRepositoryImpl`, dữ liệu nhiệm vụ luôn được ghi vào SQLite trước với `isSynced = false`. Nếu có mạng, hệ thống mới tiếp tục đẩy dữ liệu lên Firestore và đánh dấu đã đồng bộ:
+
+```dart
+Future<void> addTask(Task task) async {
+  if (task.id.isEmpty) {
+    task.id = const Uuid().v4();
+  }
+  task.updatedAt = DateTime.now().toUtc();
+
+  await _sqliteService.cacheTask(task, isSynced: false);
+
+  if (_isOnline) {
+    try {
+      await _firebaseService.saveTask(task);
+      await _sqliteService.markTaskSynced(task.id);
+    } catch (e) {
+      // Offline hoặc lỗi Firestore -> task sẽ được sync sau
+    }
+  }
+}
+```
+
+*Nguồn: `lib/repositories/impl/task_repository_impl.dart`*
+
+Khi thiết bị có mạng trở lại, các task có `isSynced = 0` sẽ được quét và đồng bộ lên Firestore:
+
+```dart
+Future<void> syncPendingTasks() async {
+  if (!_isOnline) return;
+
+  final pendingTasks = await _sqliteService.getUnsyncedTasks();
+  for (var task in pendingTasks) {
+    await _firebaseService.saveTask(task);
+    await _sqliteService.markTaskSynced(task.id);
+  }
+}
+```
+
+*Nguồn: `lib/repositories/impl/task_repository_impl.dart`*
+
+> **[Chèn Screen 6.7 - Thao tác khi mất mạng tại đây]**
+
+> **[Chèn Screen 6.8 - Đồng bộ sau khi có mạng tại đây]**
+
 ---
 
-## CÂU 7: KẾT NỐI CƠ SỞ DỮ LIỆU VÀ THỰC HIỆN ORM VỚI FIREBASE DOCUMENTS & SQLITE
+## CÂU 7: KẾT NỐI CƠ SỞ DỮ LIỆU FIREBASE (NoSQL) VÀ ÁNH XẠ DỮ LIỆU
 
-### 1. Kiến trúc lưu trữ và Ánh xạ ORM
+### 7.1. Tổng quan về Cơ sở dữ liệu Firebase (NoSQL)
 
-Mối liên kết giữa các Dart Object định nghĩa kiểu dữ liệu trong Flutter và tài liệu dạng BSON/JSON trên Cloud Firestore được thực hiện thông qua cơ chế ORM thủ công hiệu năng cao trong các Models:
+Trong dự án **TaskFlow**, Firebase được sử dụng làm nền tảng lưu trữ dữ liệu trực tuyến và xác thực người dùng. Thành phần chính được sử dụng là **Firebase Authentication** và **Cloud Firestore**. Firestore là cơ sở dữ liệu NoSQL dạng Document Database, trong đó dữ liệu được tổ chức theo mô hình `Collection -> Document -> Fields`.
 
-#### 1.1. Ánh xạ đối tượng Nhiệm vụ (Task Model ORM)
-Chi tiết trong [task_model.dart](file:///d:/Workspace/TBDD/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/lib/models/task_model.dart):
+Mô hình này phù hợp với ứng dụng quản lý công việc vì dữ liệu của hệ thống như người dùng, dự án, nhiệm vụ và thông báo có thể biểu diễn dưới dạng các tài liệu độc lập. Mỗi tài liệu có một mã định danh riêng, đồng thời các quan hệ giữa đối tượng được thể hiện thông qua các khóa logic như `projectId`, `assignedTo`, `memberIds`.
+
+Hệ thống vẫn duy trì SQLite ở thiết bị để hỗ trợ cơ chế **Offline-First**. Khi thiết bị có mạng, dữ liệu được đồng bộ lên Firestore; khi mất mạng, dữ liệu được lưu cục bộ và đánh dấu trạng thái chờ đồng bộ.
+
+### 7.2. Quá trình thiết lập và kết nối Firebase
+
+Quá trình kết nối Firebase của dự án được thực hiện theo các bước sau:
+
+| Bước | Công việc thiết lập | Kết quả trong dự án |
+| :--- | :--- | :--- |
+| 1 | Tạo Firebase Project trên Firebase Console | Có môi trường cloud cho TaskFlow |
+| 2 | Đăng ký ứng dụng Android/Flutter với Firebase | Ứng dụng được liên kết với Firebase Project |
+| 3 | Cấu hình `google-services.json` | Android có thể kết nối tới Firebase |
+| 4 | Sinh `firebase_options.dart` | Flutter có tệp cấu hình đa nền tảng |
+| 5 | Khởi tạo Firebase trong `lib/main.dart` | Firebase sẵn sàng trước khi ứng dụng chạy |
+| 6 | Tích hợp Firebase Auth | Hỗ trợ đăng nhập, đăng ký, xác định UID người dùng |
+| 7 | Tích hợp Cloud Firestore | Đọc/ghi dữ liệu người dùng, dự án, nhiệm vụ và đồng bộ |
+
+Trong mã nguồn, các thao tác kết nối và truy cập dữ liệu được đóng gói ở tầng Service và Repository, giúp giao diện không phụ thuộc trực tiếp vào Firebase SDK. Cách tổ chức này giúp hệ thống dễ kiểm thử, dễ thay đổi nguồn dữ liệu và phù hợp với kiến trúc `UI -> Provider -> Repository -> Service`.
+
+Đối với **TaskFlow**, quá trình kết nối Firebase không chỉ phục vụ thao tác lưu trữ trực tuyến mà còn là một phần của cơ chế đồng bộ Offline-First. Các lớp `FirebaseService`, `SQLiteService`, `LocalTaskRepository`, `LocalProjectRepository` và `LocalUserRepository` phối hợp để bảo đảm người dùng vẫn có thể xem và cập nhật dự án/nhiệm vụ ngay cả khi thiết bị tạm thời mất kết nối mạng.
+
+### 7.3. Kỹ thuật Ánh xạ Đối tượng thành Tài liệu
+
+Mối liên kết giữa các Dart Object định nghĩa kiểu dữ liệu trong Flutter và tài liệu dạng JSON trên Cloud Firestore được thực hiện thông qua cơ chế ánh xạ thủ công trong các Model. Mỗi Model cung cấp hai phương thức chính:
+
+- `fromMap()`: chuyển dữ liệu từ Firestore Document hoặc SQLite Map thành đối tượng Dart.
+- `toMap()`: chuyển đối tượng Dart thành cấu trúc Key-Value để lưu vào Firestore hoặc SQLite.
+
+Ví dụ ánh xạ đối tượng Nhiệm vụ trong [task_model.dart](file:///d:/Workspace/TBDD/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/lib/models/task_model.dart):
+
 ```dart
 class Task {
   String id;
@@ -909,7 +1194,7 @@ class Task {
 }
 ```
 
-### 2. Thiết Kế SQLite Local Database (Version 7)
+### 7.4. Thiết kế SQLite Local Database (Version 7)
 
 SQLite sử dụng file cơ sở dữ liệu cục bộ `taskflow.db`. Dưới đây là đặc tả chi tiết của 4 bảng trong hệ thống:
 
@@ -989,7 +1274,7 @@ Thiết kế này phù hợp khi số lượng thành viên và dự án nhỏ. 
 
 ---
 
-### 3. Cấu trúc Collections Cloud Firestore (Remote Database NoSQL)
+### 7.5. Cấu trúc Collections Cloud Firestore (Remote Database NoSQL)
 
 Firestore tổ chức dữ liệu theo mô hình tài liệu phi quan hệ (NoSQL Document Store) gồm 3 Collections chính:
 
@@ -1003,45 +1288,18 @@ Firestore tổ chức dữ liệu theo mô hình tài liệu phi quan hệ (NoSQ
 Dưới đây là sơ đồ thực thể quan hệ logic (ERD) mô tả mối quan hệ giữa các tài liệu trong Firestore:
 
 ```mermaid
-erDiagram
-    users_firestore {
-        string uid PK "Firestore Document ID (Firebase Auth UID)"
-        string name
-        string email
-        string role
-        string avatarChar
-    }
+flowchart TB
+    users_firestore["users_firestore<br/>----------<br/>uid<br/>name<br/>email<br/>role<br/>avatarChar"]
+    projects_firestore["projects_firestore<br/>----------<br/>id<br/>name<br/>description<br/>memberIds<br/>updatedAt<br/>todoCount<br/>doingCount<br/>doneCount<br/>progress"]
+    tasks_firestore["tasks_firestore<br/>----------<br/>id<br/>title<br/>description<br/>projectId<br/>assignedTo<br/>status<br/>deadline<br/>assigneeName<br/>assigneeAvatar<br/>isUrgent<br/>updatedAt<br/>rejectionReason"]
 
-    projects_firestore {
-        string id PK "Firestore Document ID"
-        string name
-        string description
-        array memberIds "Mảng các UID thành viên"
-        string updatedAt "string (ISO 8601 UTC)"
-        int todoCount
-        int doingCount
-        int doneCount
-        double progress
-    }
+    users_firestore -- "assignedTo" --> tasks_firestore
+    projects_firestore -- "projectId" --> tasks_firestore
+    users_firestore -.->|memberIds| projects_firestore
 
-    tasks_firestore {
-        string id PK "Firestore Document ID"
-        string title
-        string description
-        string projectId "Tham chiếu logic tới Project"
-        string assignedTo "Tham chiếu logic tới User"
-        string status
-        string deadline "string (ISO 8601 UTC)"
-        string assigneeName
-        string assigneeAvatar
-        boolean isUrgent
-        string updatedAt "string (ISO 8601 UTC)"
-        string rejectionReason
-    }
-
-    users_firestore ||--o{ tasks_firestore : "assignedTo"
-    projects_firestore ||--o{ tasks_firestore : "projectId"
-    users_firestore ||--o{ projects_firestore : "memberIds[] (Logical Many-to-Many Relation)"
+    style users_firestore fill:#ffffff,stroke:#222222,stroke-width:1px
+    style projects_firestore fill:#ffffff,stroke:#222222,stroke-width:1px
+    style tasks_firestore fill:#ffffff,stroke:#222222,stroke-width:1px
 ```
 
 #### 3.2. Collection `users`
@@ -1094,7 +1352,7 @@ erDiagram
 
 ---
 
-### 4. Nguyên Tắc Định Danh & Ràng Buộc Dữ Liệu
+### 7.6. Nguyên tắc định danh và ràng buộc dữ liệu
 
 Để đảm bảo an toàn thông tin và tránh rò rỉ dữ liệu giữa các tài khoản, hệ thống áp dụng các nguyên tắc định danh nghiêm ngặt:
 
@@ -1109,7 +1367,7 @@ erDiagram
 
 ---
 
-### 5. Firestore Security Rules (Cơ chế bảo mật trên máy chủ)
+### 7.7. Firestore Security Rules (Cơ chế bảo mật trên máy chủ)
 
 Dưới đây là cấu hình quy tắc bảo mật thực tế đang được sử dụng trong dự án tại tệp `firestore.rules`:
 
@@ -1212,39 +1470,289 @@ service cloud.firestore {
 
 ---
 
-## CÂU 8: KIỂM THỬ VÀ KIỂM ĐỊNH (TESTING & VALIDATION)
+## CÂU 8: KIỂM THỬ HỆ THỐNG
 
-Để đảm bảo phần mềm hoạt động trơn tru trong mọi trường hợp, ứng dụng đã tích hợp cơ chế bắt lỗi đa tầng và bộ test tự động:
+Kiểm thử hệ thống được thực hiện nhằm đánh giá mức độ hoàn thiện của ứng dụng **TaskFlow** trước khi nộp bài tập lớn cuối kỳ. Hoạt động kiểm thử tập trung vào tính đúng đắn của nghiệp vụ, tính ổn định của giao diện, khả năng phân quyền theo vai trò, khả năng lưu trữ dữ liệu và cơ chế đồng bộ Offline-First.
 
-### 1. Các cơ chế bắt lỗi và bảo vệ dữ liệu (Error Handling)
-* **Bảo vệ chuyển đổi trạng thái (State Validation):** Việc chuyển đổi trạng thái của Task được kiểm soát bởi ma trận `allowedTransitions` trong lớp Task. Mọi nỗ lực bypass thông qua giao diện hoặc gọi API trái phép đều bị chặn cả ở tầng logic của Flutter và tầng Firestore Security Rules.
-* **Giới hạn Timeout mạng:** Khi thực hiện gọi API Firebase (Đăng nhập, đọc danh sách dự án...), hệ thống áp dụng giới hạn `.timeout(Duration(seconds: 15))` để ngăn chặn ứng dụng bị treo vô hạn khi mạng chập chờn, tự động chuyển vùng dữ liệu sang SQLite để người dùng tiếp tục thao tác.
-* **Khắc phục lỗi đồng bộ khi khôi phục kết nối (Re-connection Sync Fix):** Phát hiện lỗi hệ thống chỉ kích hoạt đồng bộ dự án ngoại tuyến (`projectProvider.syncPending()`) mà bỏ quên đồng bộ danh sách nhiệm vụ (`taskProvider.syncPending()`) khi mạng trực tuyến trở lại. Lỗi này đã được vá triệt để bằng cách tích hợp cả hai lời gọi đồng bộ song song trong callback `onBackOnline` tại tệp `lib/main.dart` của `ConnectivityProvider`.
+### 8.1. Mục tiêu kiểm thử
 
-### 2. Viết đơn vị kiểm định (Unit Test & Widget Test)
-Dự án triển khai kiểm thử tự động toàn diện cho các vai trò và tính năng cốt lõi:
+Mục tiêu chính của quá trình kiểm thử gồm:
 
-* **Ví dụ Widget Test kiểm định phân quyền điều hướng Bottom NavBar** từ [integration_verification_test.dart](file:///d:/Workspace/TBDD/TaskFlow_Huong_Thuong_Cuong_N03_1_2026/test/integration_verification_test.dart):
+| Mục tiêu | Nội dung kiểm chứng |
+| :--- | :--- |
+| Đáp ứng User Stories | Các câu chuyện người dùng ở Câu 1 được hiện thực thành chức năng thực tế |
+| Phân quyền đúng | Manager và Member nhìn thấy đúng màn hình, đúng quyền thao tác |
+| Dữ liệu chính xác | User, Project, Task, Notification được lưu đúng trong SQLite và Firestore |
+| State Machine hợp lệ | Task tuân thủ luồng `todo -> doing -> reviewing -> done` |
+| Hỗ trợ offline | Người dùng vẫn thao tác được khi mất mạng và đồng bộ lại khi có mạng |
+| Ổn định giao diện | Ứng dụng không crash trong các luồng thao tác chính |
+
+### 8.2. Phạm vi kiểm thử
+
+| Nhóm kiểm thử | Nội dung kiểm thử | Kết quả mong đợi |
+| :--- | :--- | :--- |
+| Xác thực người dùng | Đăng nhập, đăng xuất, đọc hồ sơ người dùng | Người dùng vào đúng giao diện theo vai trò |
+| Phân quyền giao diện | Manager và Member nhìn thấy tab/nút khác nhau | Member không thấy chức năng quản lý nhóm và tạo nhanh không hợp lệ |
+| Quản lý dự án | Tạo dự án, sửa thông tin, thêm/xóa thành viên | Dữ liệu dự án được lưu đúng và không tạo bản ghi lỗi |
+| Quản lý nhiệm vụ | Tạo task, giao task, xem danh sách task | Task hiển thị đúng dự án, đúng người phụ trách |
+| State Machine | Chuyển `todo -> doing -> reviewing -> done` | Chỉ cho phép chuyển trạng thái hợp lệ |
+| Offline-First | Tạo/sửa dữ liệu khi mất mạng | Dữ liệu được lưu SQLite và đồng bộ lại khi có mạng |
+| Thông báo | Lắng nghe thay đổi nhiệm vụ/dự án | Người dùng nhận thông báo cục bộ phù hợp |
+| Hồ sơ cá nhân | Sửa tên hiển thị, đổi mật khẩu | Thông tin cập nhật đúng và có kiểm tra hợp lệ |
+
+### 8.3. Môi trường và công cụ kiểm thử
+
+| Thành phần | Mô tả |
+| :--- | :--- |
+| Framework | Flutter |
+| Ngôn ngữ | Dart |
+| Cơ sở dữ liệu cục bộ | SQLite |
+| Cơ sở dữ liệu trực tuyến | Firebase Firestore |
+| Xác thực | Firebase Authentication |
+| Công cụ test | `flutter test`, Widget Test, Unit Test |
+| Thiết bị kiểm thử | Android Emulator/thiết bị Android thật |
+| Quản lý mã nguồn | Git và GitHub |
+
+### 8.4. Kế hoạch kiểm thử tổng quan
+
+Kế hoạch kiểm thử được chia theo các nhóm chức năng chính của **TaskFlow**, bám theo các màn hình và luồng nghiệp vụ đã triển khai trong ứng dụng:
+
+| STT | Nhóm kiểm thử | Màn hình/lớp liên quan |
+| :--- | :--- | :--- |
+| 1 | Xác thực tài khoản | Login/Register, `AuthProvider`, Firebase Auth |
+| 2 | Phân quyền giao diện | `MainScreen`, Bottom Navigation, Role-based UI |
+| 3 | Quản lý dự án | `ProjectListScreen`, `ProjectProvider`, `ProjectRepository` |
+| 4 | Quản lý nhiệm vụ | `ProjectTaskScreen`, `TaskDetailScreen`, `TaskProvider` |
+| 5 | Chuyển trạng thái nhiệm vụ | Task State Machine, Firestore Rules |
+| 6 | Cơ sở dữ liệu | SQLite, Firestore Collections |
+| 7 | Đồng bộ Offline-First | `ConnectivityProvider`, `syncPending()` |
+| 8 | Giao diện chính | `HomeScreen`, `ProjectTaskScreen`, `ProfileScreen` |
+| 9 | Bắt lỗi và ngoại lệ | Provider, Repository, Service |
+
+### 8.5. Các nhóm kiểm thử đã thực hiện
+
+| Mã nhóm | Nhóm kiểm thử | Mục tiêu |
+| :--- | :--- | :--- |
+| TC-AUTH | Authentication Test | Kiểm tra đăng nhập, đăng xuất, xác định người dùng hiện tại |
+| TC-ROLE | Role-based UI Test | Kiểm tra giao diện Manager và Member |
+| TC-PROJECT | Project Test | Kiểm tra tạo, sửa, hiển thị dự án |
+| TC-TASK | Task Test | Kiểm tra tạo, giao, cập nhật nhiệm vụ trong Kanban/List/Calendar |
+| TC-STATE | State Machine Test | Kiểm tra quy tắc chuyển trạng thái task |
+| TC-SYNC | Offline Sync Test | Kiểm tra lưu cục bộ và đồng bộ Firestore |
+| TC-NOTI | Notification Test | Kiểm tra thông báo nội bộ |
+| TC-UI | UI/Widget Test | Kiểm tra hiển thị màn hình và thành phần giao diện |
+
+Bảng kiểm thử chuyển trạng thái nhiệm vụ:
+
+| Vai trò | Trạng thái ban đầu | Hành động | Trạng thái sau |
+| :--- | :--- | :--- | :--- |
+| Member | `todo` | Bắt đầu làm | `doing` |
+| Member | `doing` | Gửi duyệt | `reviewing` |
+| Manager | `reviewing` | Duyệt | `done` |
+| Manager | `reviewing` | Từ chối | Quay lại trạng thái cần xử lý |
+
+Các trạng thái không hợp lệ sẽ bị chặn tại tầng Provider/Repository và tiếp tục được bảo vệ bằng Firestore Security Rules.
+
+### 8.6. Unit Tests
+
+Unit Test được sử dụng để kiểm tra các hàm xử lý logic độc lập, không phụ thuộc trực tiếp vào giao diện. Các thành phần được ưu tiên kiểm thử gồm Model, Provider, Repository và các hàm xử lý trạng thái.
+
+Các trường hợp Unit Test tiêu biểu:
+
+| Trường hợp kiểm thử | Lớp/đối tượng liên quan | Kết quả mong đợi |
+| :--- | :--- | :--- |
+| Ánh xạ `fromMap()` và `toMap()` | `Task`, `ProjectModel`, `UserModel` | Dữ liệu không thiếu trường, không sai kiểu |
+| Chuyển trạng thái hợp lệ | `TaskProvider`, Task State Machine | Chỉ cho phép trạng thái hợp lệ |
+| Tính toán tiến độ dự án | `ProjectProvider`, `TaskProvider` | Phần trăm hoàn thành cập nhật đúng |
+| Lọc nhiệm vụ theo người được giao | `TaskProvider` | Member chỉ thấy task liên quan |
+| Trạng thái đồng bộ | `isSynced`, Repository | Dữ liệu offline được đánh dấu chờ đồng bộ |
+| Ràng buộc xóa thành viên | `ProjectProvider`, `TaskProvider` | Không xóa thành viên khi còn task chưa hoàn thành |
+
+### 8.7. UI / Widget Tests
+
+Ứng dụng kiểm tra vai trò người dùng sau khi đăng nhập. Manager được phép tạo dự án, tạo nhiệm vụ, quản lý thành viên và duyệt nhiệm vụ. Member chỉ được xem nhiệm vụ liên quan và cập nhật trạng thái trong phạm vi được giao.
+
+Ví dụ kiểm thử Widget cho giao diện Member:
+
 ```dart
-testWidgets('A2. Member sees 3 tabs and NO FAB on MainScreen', (WidgetTester tester) async {
+testWidgets('Member sees 3 tabs and no FAB on MainScreen', (WidgetTester tester) async {
   mockAuthProvider.setCurrentUser(memberUser);
   await tester.pumpWidget(createMainScreen());
   await tester.pumpAndSettle();
 
-  // Xác nhận Member chỉ nhìn thấy 3 icons điều hướng
   expect(find.byIcon(Icons.home_rounded), findsOneWidget);
   expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
   expect(find.byIcon(Icons.person_outline_rounded), findsOneWidget);
-  
-  // Xác nhận Member KHÔNG nhìn thấy tab Quản lý nhóm và nút FAB tạo việc
   expect(find.byIcon(Icons.group_outlined), findsNothing);
   expect(find.byType(FloatingActionButton), findsNothing);
 });
 ```
 
-* **Xác nhận kết quả chạy Test:**
-  Chạy lệnh `flutter test` xác nhận bộ kiểm thử bao phủ các nhóm chức năng chính như Lịch biểu, Phân quyền, Đồng bộ ngoại tuyến và Giao diện chính. Kết quả kiểm thử cuối cùng:
-  `00:48 +73: All tests passed!`
+Các Widget Test giúp bảo đảm giao diện hiển thị đúng theo từng vai trò. Ví dụ, Member không được nhìn thấy tab quản lý nhóm và không có nút tạo nhanh nhiệm vụ như Manager.
+
+### 8.8. Workflow / Integration Tests
+
+Workflow Test được thực hiện để kiểm tra các luồng nghiệp vụ hoàn chỉnh từ đầu đến cuối. Các luồng được kiểm thử gồm:
+
+| Luồng kiểm thử | Các bước chính | Kết quả mong đợi |
+| :--- | :--- | :--- |
+| Manager tạo dự án và nhiệm vụ | Đăng nhập Manager -> tạo dự án -> thêm thành viên -> tạo task | Dự án/task xuất hiện đúng trong danh sách |
+| Member xử lý nhiệm vụ | Đăng nhập Member -> nhận task -> bắt đầu làm -> gửi duyệt | Task chuyển từ `todo` sang `doing`, sau đó sang `reviewing` |
+| Manager duyệt nhiệm vụ | Mở task `reviewing` -> duyệt hoặc từ chối | Task chuyển sang `done` hoặc quay lại trạng thái cần xử lý |
+| Offline Sync | Mất mạng -> sửa dữ liệu -> có mạng lại -> đồng bộ | Dữ liệu SQLite được đẩy lên Firestore |
+| Kiểm tra màn hình chính | Mở Dashboard, Kanban, Calendar, Notification | Dữ liệu hiển thị nhất quán giữa các màn hình |
+| Cập nhật tiến độ | Hoàn thành task -> quay lại Project List | Thanh tiến độ dự án được cập nhật |
+
+### 8.9. QA Smoke Integration Test
+
+Smoke Test được thực hiện sau mỗi lần chỉnh sửa lớn để bảo đảm ứng dụng vẫn chạy được các chức năng tối thiểu. Các bước kiểm tra nhanh gồm:
+
+1. Mở ứng dụng không bị crash.
+2. Đăng nhập bằng tài khoản hợp lệ.
+3. Điều hướng giữa các tab chính.
+4. Mở danh sách dự án.
+5. Mở chi tiết nhiệm vụ.
+6. Thực hiện một thao tác cập nhật trạng thái.
+7. Kiểm tra dữ liệu vẫn hiển thị sau khi tải lại ứng dụng.
+
+### 8.10. Kiểm thử thủ công và hiệu năng
+
+Kiểm thử thủ công được thực hiện trên các màn hình chính nhằm đánh giá tính ổn định và trải nghiệm sử dụng. Ứng dụng được quan sát theo các tiêu chí:
+
+| Tiêu chí | Cách kiểm tra | Kết quả mong đợi |
+| :--- | :--- | :--- |
+| Không crash | Chuyển liên tục giữa Home, Project, Task Detail, Profile | Ứng dụng hoạt động ổn định |
+| Không treo giao diện | Tải dữ liệu khi mạng yếu hoặc chưa có dữ liệu | Có trạng thái loading/empty phù hợp |
+| Cuộn danh sách mượt | Cuộn danh sách dự án, nhiệm vụ, thông báo | Không giật, không vỡ layout |
+| Phản hồi thao tác | Bấm tạo/sửa/chuyển trạng thái task | Có cập nhật giao diện hoặc thông báo |
+| Bắt lỗi nhập liệu | Bỏ trống tên dự án, tiêu đề task, deadline | Hiển thị lỗi rõ ràng |
+| Online/Offline | Tắt mạng, sửa dữ liệu, bật mạng lại | Không mất dữ liệu và có đồng bộ lại |
+
+> **[Chèn ảnh kiểm thử thủ công và hiệu năng tại đây]**
+
+### 8.11. Bảng Mapping Test
+
+| Đối tượng | Nguồn dữ liệu | Đích ánh xạ | Trường kiểm tra |
+| :--- | :--- | :--- | :--- |
+| UserModel | Firestore `users` | Dart Object / SQLite `users_local` | `id`, `name`, `email`, `role`, `avatarChar` |
+| ProjectModel | Firestore `projects` | Dart Object / SQLite `projects_local` | `id`, `name`, `description`, `memberIds`, `updatedAt` |
+| Task | Firestore `tasks` | Dart Object / SQLite `tasks_local` | `id`, `title`, `projectId`, `assignedTo`, `status`, `deadline`, `isSynced` |
+| NotificationModel | SQLite `notifications_local` | Dart Object / UI | `id`, `userId`, `title`, `message`, `isRead`, `type` |
+
+Mapping Test giúp bảo đảm dữ liệu không bị sai kiểu, thiếu trường hoặc mất quan hệ logic khi chuyển đổi giữa Object trong Flutter, bảng SQLite và Document của Firestore.
+
+### 8.12. Đánh giá kết quả kiểm thử
+
+Kết quả kiểm thử cho thấy các chức năng cốt lõi của **TaskFlow** hoạt động đúng theo yêu cầu:
+
+- Đăng nhập và phân quyền hoạt động đúng.
+- Manager và Member nhìn thấy giao diện khác nhau đúng theo vai trò.
+- Dự án và nhiệm vụ được tạo, hiển thị và cập nhật ổn định.
+- Quy tắc chuyển trạng thái nhiệm vụ được kiểm soát.
+- Dữ liệu có thể lưu cục bộ và đồng bộ khi có mạng.
+- Các màn hình chính không phát sinh lỗi nghiêm trọng trong luồng thao tác cơ bản.
+
+Kết quả kiểm thử tự động của dự án:
+
+```text
+flutter test
+00:48 +73: All tests passed!
+```
+
+### 8.13. Kết luận
+
+Tổng kết lại, hệ thống đáp ứng các tiêu chí kiểm thử cơ bản của bài tập lớn. Ứng dụng đã có cơ chế bắt lỗi ở nhiều tầng, có kiểm thử tự động, có kiểm thử theo luồng công việc và có kiểm tra dữ liệu ánh xạ giữa Object, SQLite và Firestore. Các kết quả này là cơ sở để khẳng định ứng dụng có thể vận hành ổn định trong phạm vi yêu cầu của đồ án.
+
+---
+
+## CÂU 9: BÁO CÁO BẢN CỨNG, LINK DỰ ÁN, LINK DEMO VÀ ĐÓNG GÓP THÀNH VIÊN
+
+Theo yêu cầu của học phần tại Đại học Phenikaa, nhóm thực hiện báo cáo tổng hợp cho dự án **TaskFlow** dưới dạng bản PDF và bản cứng. Nội dung báo cáo trình bày đầy đủ các phần: câu chuyện người dùng, phân tích yêu cầu, thiết kế hệ thống, thiết kế giao diện, hiện thực chức năng, kết nối cơ sở dữ liệu, kiểm thử và minh chứng đóng góp của từng thành viên.
+
+### 9.1. Thông tin nộp bài
+
+| Nội dung | Thông tin |
+| :--- | :--- |
+| Tên dự án | TaskFlow |
+| Lớp | N03 |
+| Hình thức báo cáo | Báo cáo nhóm, mỗi sinh viên in và nộp 01 bản theo quy định |
+| Bản PDF | Nộp theo thời hạn yêu cầu của giảng viên |
+| Bản cứng | Nộp trước 10h00 ngày 18/06/2026 |
+| Bìa báo cáo | Mỗi sinh viên tự ghi tên và mã sinh viên của mình trên bìa bản nộp |
+
+### 9.2. Link mã nguồn và video demo
+
+| Hạng mục | Đường dẫn |
+| :--- | :--- |
+| GitHub Repository | `git@github.com:ttt-huong/TaskFlow_Huong_Thuong_Cuong_N03_1_2026.git` |
+| Video demo | **[Nhóm bổ sung link video demo tại đây]** |
+| README dự án | Tệp `README.md` được đóng kèm trong mã nguồn và có thể in kèm phụ lục báo cáo |
+
+### 9.3. Bảng phân công và đóng góp của thành viên
+
+| Thành viên | Vai trò | Nhiệm vụ chính và đóng góp kỹ thuật | Tỷ lệ đóng góp |
+| :--- | :--- | :--- | :--- |
+| **Trần Thị Thu Hường - 23010344** | Trưởng nhóm, phát triển kiến trúc và dữ liệu | Quản lý tiến độ dự án; thiết kế kiến trúc phân lớp `UI -> Provider -> Repository -> Service`; xây dựng SQLite Schema và Firestore Document Schema; phát triển `SQLiteService`, `FirebaseService`, các Repository cục bộ; triển khai cơ chế Offline-First Sync Engine; tích hợp Firebase Auth và Firestore; xây dựng `MainScreen`, Dashboard, màn hình quản lý nhiệm vụ, Kanban, Calendar; tối ưu ràng buộc nghiệp vụ và kịch bản demo. | 50% |
+| **Nguyễn Việt Cường** | Frontend Developer và UML Designer | Thiết kế sơ đồ UML gồm Use Case, Class Diagram, Sequence Diagram, Activity Diagram; hỗ trợ xây dựng giao diện danh sách dự án `ProjectListScreen`; hiển thị tiến độ hoàn thành bằng `LinearProgressIndicator`; hỗ trợ cải thiện giao diện module dự án. | 25% |
+| **Nguyễn Thị Thương** | UI/UX Designer và Document Specialist | Thiết kế wireframe, UI nguyên mẫu và luồng hoạt động; xây dựng màn hình hồ sơ cá nhân `ProfileScreen`, `EditProfileScreen`; hỗ trợ chức năng thông báo cục bộ thông qua `NotificationProvider`; biên soạn và hiệu chỉnh tài liệu báo cáo, tài liệu cơ sở dữ liệu và tài liệu UML. | 25% |
+
+### 9.4. Phụ lục bắt buộc kèm báo cáo
+
+Khi in và nộp bản cứng, nhóm cần bảo đảm các phụ lục sau được đóng kèm hoặc thể hiện rõ trong báo cáo:
+
+| Phụ lục | Trạng thái cần chuẩn bị |
+| :--- | :--- |
+| Link GitHub Repository | Đã có đường dẫn repository, cần đặt ở trang riêng hoặc mục phụ lục |
+| Link video demo | Nhóm bổ sung sau khi quay và tải video |
+| Bảng phân công đóng góp | Đã có trong mục 9.3 |
+| README dự án | Đóng kèm hoặc in phụ lục từ `README.md` |
+| Ảnh wireframe/mockup Câu 4 | Nhóm chèn ảnh vẽ tay/Figma sau |
+| Ảnh màn hình theo luồng Câu 6 | Nhóm chèn screenshot ứng dụng sau |
+| Minh chứng Git Contributions Câu 10 | Chèn ảnh GitHub Commits/Contributors hoặc bảng commit |
+
+---
+
+## CÂU 10: LỊCH SỬ CODE VÀ MINH CHỨNG ĐÓNG GÓP QUA GIT COMMITS
+
+Lịch sử phát triển mã nguồn của dự án được quản lý bằng Git và lưu trữ trên GitHub. Các commit thể hiện quá trình xây dựng ứng dụng theo từng giai đoạn: khởi tạo dự án, xây dựng giao diện, phát triển Provider/Repository, tích hợp cơ sở dữ liệu, bổ sung kiểm thử, hoàn thiện tài liệu và chuẩn bị báo cáo cuối kỳ.
+
+### 10.1. Minh chứng commit tiêu biểu
+
+| Thành viên/Tài khoản Git | Commit | Nội dung đóng góp thể hiện qua commit |
+| :--- | :--- | :--- |
+| `ttt-huong` | `14ee28a` | Cập nhật các tệp `.dart` và luồng điều hướng |
+| `ttt-huong` | `8f3715b` | Cập nhật điều hướng Profile, loại bỏ các chức năng không thuộc phạm vi dự án |
+| `ttt-huong` | `b494b09` | Bổ sung unit test và integration test cho phân quyền, giao việc lại, duyệt/từ chối nhiệm vụ |
+| `ttt-huong` | `96eef1d` | Cập nhật model dữ liệu và repository để hỗ trợ lược đồ lưu trữ kép |
+| `ttt-huong` | `7980006` | Cập nhật cấu hình Android, Firestore Rules, dịch vụ cơ sở dữ liệu và kết nối |
+| `Vcuozg` | `501ca23` | Nâng cấp giao diện module dự án |
+| `Vcuozg` | `f5f54e9` | Cải thiện `TaskProvider` |
+| `Vcuozg` | `5c1bdd4` | Cải thiện `ProjectProvider` |
+| `Vcuozg` | `19625ab` | Cập nhật khởi tạo ứng dụng |
+| `Vcuozg` | `fe8bb00` | Cập nhật cấu hình Android Gradle |
+
+### 10.2. Đánh giá đóng góp qua Git
+
+Qua lịch sử commit, nhóm đã thực hiện phát triển dự án theo nhiều giai đoạn rõ ràng:
+
+| Giai đoạn | Nội dung thực hiện | Minh chứng |
+| :--- | :--- | :--- |
+| Thiết kế | Bổ sung UML, ERD, kiến trúc hệ thống và tài liệu phân tích | Các commit `docs:` và tài liệu trong thư mục `docs/` |
+| Phát triển lõi | Xây dựng Provider, Repository, Service, Model và Offline Sync | Các commit `feat(provider)`, `feat(repo)`, `feat(core)` |
+| Phát triển giao diện | Hoàn thiện Dashboard, Project List, Project Task, Profile, Task Detail | Các commit cập nhật UI và màn hình |
+| Kiểm thử | Bổ sung unit test, widget test và integration test | Commit `test: add unit and integration tests...` |
+| Hoàn thiện | Cập nhật báo cáo, kịch bản demo, README và tài liệu cuối kỳ | Các commit `docs:` |
+
+### 10.3. Minh chứng cần đính kèm khi nộp bản cứng
+
+Để đáp ứng đầy đủ yêu cầu của giảng viên về lịch sử code của từng sinh viên, nhóm cần in hoặc chèn thêm một trong các minh chứng sau:
+
+| Loại minh chứng | Nội dung thể hiện |
+| :--- | :--- |
+| Ảnh GitHub Commits | Danh sách commit, mã commit, tác giả và thời gian thực hiện |
+| Ảnh GitHub Insights/Contributors | Số lượng đóng góp của từng tài khoản GitHub |
+| Bảng thống kê commit | Tổng hợp commit theo thành viên/tài khoản |
+| Phụ lục giải thích commit | Dùng khi thành viên làm chung máy hoặc commit qua cùng tài khoản |
 
 ---
 
