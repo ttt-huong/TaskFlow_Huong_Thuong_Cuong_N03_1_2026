@@ -1,4 +1,4 @@
-LINK DEMO : https://youtu.be/egTo7mLnllo?si=-f9RtDxsDah-MoeK
+LINK DEMO : https://www.youtube.com/watch?v=-YJebXdFYiM
 
 Muc tieu buoi 01: Khoi tao du an va tuy chinh man hinh chinh theo yeu cau nhom
 Noi dung da thuc hien
